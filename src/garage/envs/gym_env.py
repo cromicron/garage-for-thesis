@@ -5,6 +5,8 @@ import warnings
 
 import akro
 import gym
+from gymnasium import Env
+from gymnasium.utils.step_api_compatibility import convert_to_done_step_api as convert_step
 import numpy as np
 
 from garage import Environment, EnvSpec, EnvStep, StepType
@@ -134,7 +136,7 @@ class GymEnv(Environment):
         self._env = None
         if isinstance(env, str):
             self._env = gym.make(env)
-        elif isinstance(env, gym.Env):
+        elif isinstance(env, gym.Env) or isinstance(env, Env):
             self._env = env
         else:
             raise ValueError('GymEnv can take env as either a string, '
@@ -144,7 +146,10 @@ class GymEnv(Environment):
         self._max_episode_length = _get_time_limit(self._env,
                                                    max_episode_length)
 
-        self._render_modes = self._env.metadata['render.modes']
+        if isinstance(self._env, Env):
+            self._render_modes = self._env.metadata['render_modes']
+        else:
+            self._render_modes = self._env.metadata['render.modes']
 
         self._step_cnt = None
         self._visualize = False
@@ -192,7 +197,7 @@ class GymEnv(Environment):
                 goal-conditioned or MTRL.)
 
         """
-        first_obs = self._env.reset()
+        first_obs = self._env.reset()[0]
         self._step_cnt = 0
         self._env_info = None
 
@@ -217,7 +222,9 @@ class GymEnv(Environment):
         if self._step_cnt is None:
             raise RuntimeError('reset() must be called before step()!')
 
-        observation, reward, done, info = self._env.step(action)
+        observation, reward, done, info = convert_step(
+            self._env.step(action),
+        )
 
         if self._visualize:
             self._env.render(mode='human')
