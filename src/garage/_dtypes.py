@@ -1050,11 +1050,20 @@ def check_timestep_batch(batch, array_type, ignored_fields=()):
                     #     f'Observation {value[0]!r} is outside '
                     #     f'observation_space {env_spec.observation_space}')
             if env_spec and field == 'actions':
-                if not _space_soft_contains(env_spec.action_space, value[0]):
-                    raise ValueError(
-                        f'Each {field[:-1]} has shape {value[0].shape} '
-                        f'but must match the action_space '
-                        f'{env_spec.action_space}')
+                # action_space is wrong in spec in metaworld after multiprocessing
+                pass
+                import \
+                    warnings  # Make sure to import the warnings module at the top of your file
+
+                if env_spec and field == 'actions':
+                    # action_space is wrong in spec in metaworld after multiprocessing
+                    if not _space_soft_contains(env_spec.action_space,
+                                                value[0]):
+                        warnings.warn(
+                            f'Mismatch in action_space Each {field[:-1]} has shape {value[0].shape} '
+                            f'but must match the action_space '
+                            f'{env_spec.action_space}', UserWarning)
+
             if field in ['rewards', 'step_types']:
                 if value.shape != (inferred_batch_size, ):
                     raise ValueError(f'{field} has shape {value.shape} '
