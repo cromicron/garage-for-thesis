@@ -309,7 +309,10 @@ def concat_tensor_dict_list(tensor_dict_list):
     ret = dict()
     for k in keys:
         example = tensor_dict_list[0][k]
-        dict_list = [x[k] if k in x else [] for x in tensor_dict_list]
+        if k == "in_place_reward":
+            dict_list = [x[k].flatten() if k in x else [] for x in tensor_dict_list]
+        else:
+            dict_list = [x[k] if k in x else [] for x in tensor_dict_list]
         if isinstance(example, dict):
             v = concat_tensor_dict_list(dict_list)
         else:

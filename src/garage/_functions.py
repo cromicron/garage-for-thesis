@@ -1,7 +1,7 @@
 """Functions exposed directly in the garage namespace."""
 from collections import defaultdict
 import time
-
+import wandb
 import click
 from dowel import tabular
 import numpy as np
@@ -174,7 +174,7 @@ def obtain_evaluation_episodes(policy,
     return EpisodeBatch.from_list(env.spec, episodes)
 
 
-def log_multitask_performance(itr, batch, discount, name_map=None):
+def log_multitask_performance(itr, batch, discount, name_map=None, w_b=False):
     r"""Log performance of episodes from multiple tasks.
 
     Args:
@@ -188,6 +188,7 @@ def log_multitask_performance(itr, batch, discount, name_map=None):
             names. Optional if the "task_name" environment info is present.
             Note that if provided, all tasks listed in this map will be logged,
             even if there are no episodes present for them.
+        w_b (bool): Whether to log to w&b
 
     Returns:
         numpy.ndarray: Undiscounted returns averaged across all tasks. Has
@@ -230,7 +231,7 @@ def log_multitask_performance(itr, batch, discount, name_map=None):
     return log_performance(itr, batch, discount=discount, prefix='Average')
 
 
-def log_performance(itr, batch, discount, prefix='Evaluation'):
+def log_performance(itr, batch, discount, prefix='Evaluation', w_b=True):
     """Evaluate the performance of an algorithm on a batch of episodes.
 
     Args:
@@ -316,5 +317,9 @@ def log_performance(itr, batch, discount, prefix='Evaluation'):
                            np.mean(episode_max_in_place_reward))
             tabular.record('EpisodeMeanMinInPlaceReward',
                            np.mean(episode_min_in_place_reward))
-
+    if w_b:
+        wandb.log({
+            f"{tabular._prefix_str}/{prefix}/AverageReturn": np.mean(undiscounted_returns),
+            f"{tabular._prefix_str}/{prefix}/SuccessRate": np.mean(success)
+        }, step=itr)
     return undiscounted_returns
