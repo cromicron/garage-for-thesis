@@ -5,14 +5,14 @@
 import click
 import metaworld
 import torch
-
+import wandb
 from garage import wrap_experiment
 from garage.envs import MetaWorldSetTaskEnv
 from garage.experiment import (MetaEvaluator, MetaWorldTaskSampler,
                                SetTaskSampler)
 from garage.experiment.deterministic import set_seed
 from garage.np.baselines import LinearFeatureBaseline
-from garage.sampler import LocalSampler as RaySampler
+from garage.sampler import RaySampler #LocalSampler as RaySampler
 from garage.torch.algos import MAMLTRPO
 from garage.torch.policies import GaussianMLPPolicy
 from garage.trainer import Trainer
@@ -22,8 +22,8 @@ from garage.trainer import Trainer
 @click.command()
 @click.option('--seed', type=int, default=1)
 @click.option('--epochs', type=int, default=2000)
-@click.option('--rollouts_per_task', type=int, default=10)
-@click.option('--meta_batch_size', type=int, default=20)
+@click.option('--rollouts_per_task', type=int, default=1)
+@click.option('--meta_batch_size', type=int, default=10)
 @click.option('--inner_lr', default=1e-4, type=float)
 @wrap_experiment(snapshot_mode='none', name_parameters='passed')
 def maml_trpo_metaworld_ml10(ctxt, seed, epochs, rollouts_per_task,
@@ -96,7 +96,17 @@ def maml_trpo_metaworld_ml10(ctxt, seed, epochs, rollouts_per_task,
         stop_entropy_gradient=True,
         center_adv=False,
     )
-
+    wandb.init("maml-ml10",config={
+    # Your configuration parameters here
+    "inner_rl": inner_lr,
+    "meta_batch_size": meta_batch_size,
+    "discount": 0.99,
+    "gae_lambda": 1,
+    "num_grad_updates": 1,
+    "policy_ent_coeff": 5e-5,
+    "rollouts_per_task": rollouts_per_task
+    # etc.
+})
     trainer.setup(algo, env)
     trainer.train(n_epochs=epochs,
                   batch_size=rollouts_per_task * env.spec.max_episode_length)

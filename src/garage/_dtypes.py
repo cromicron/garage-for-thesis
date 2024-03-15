@@ -606,7 +606,7 @@ class EpisodeBatch(TimeStepBatch):
                 assert (set(b.agent_infos.keys()) == set(
                     batches[0].agent_infos.keys()))
         env_infos = {
-            k: np.concatenate([b.env_infos[k] for b in batches])
+            k: np.concatenate([b.env_infos[k].flatten() for b in batches])
             for k in batches[0].env_infos.keys()
         }
         agent_infos = {
