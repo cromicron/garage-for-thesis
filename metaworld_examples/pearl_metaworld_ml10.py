@@ -3,7 +3,7 @@
 # pylint: disable=no-value-for-parameter
 import click
 import metaworld
-
+import wandb
 from garage import wrap_experiment
 from garage.envs import MetaWorldSetTaskEnv, normalize
 from garage.experiment.deterministic import set_seed
@@ -34,7 +34,7 @@ def pearl_metaworld_ml10(ctxt=None,
                          batch_size=1000,
                          embedding_batch_size=250,
                          embedding_mini_batch_size=250,
-                         reward_scale=1000.,
+                         reward_scale=10000.,
                          use_gpu=True):
     """Train PEARL with ML10 environments.
 
@@ -101,7 +101,7 @@ def pearl_metaworld_ml10(ctxt=None,
     sampler = LocalSampler(agents=None,
                            envs=env[0](),
                            max_episode_length=env[0]().spec.max_episode_length,
-                           n_workers=1,
+                           n_workers=5,
                            worker_class=PEARLWorker)
 
     pearl = PEARL(env=env,
@@ -133,7 +133,17 @@ def pearl_metaworld_ml10(ctxt=None,
         pearl.to()
 
     trainer.setup(algo=pearl, env=env[0]())
+    wandb.init(project="pearl-ml10-test", config={
+        # Your configuration parameters here
+        "meta_batch_size": meta_batch_size,
+        "batch_size": batch_size,
+        "num_steps_per_epoch": num_steps_per_epoch,
+        "num_initial_steps": num_initial_steps,
+        "num_steps_prior": num_steps_prior,
+        "num_extra_rl_steps_posterior": num_extra_rl_steps_posterior,
 
+        # etc.
+    })
     trainer.train(n_epochs=num_epochs, batch_size=batch_size)
 
 

@@ -393,6 +393,7 @@ class Wrapper(Environment):
         """akro.Space: The action space specification."""
         return self._env.action_space
 
+
     @property
     def observation_space(self):
         """akro.Space: The observation space specification."""

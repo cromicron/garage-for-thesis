@@ -5,7 +5,18 @@ import random
 # TaskNameWrapper, and TaskOnehotWrapper.
 from garage import envs
 from garage._environment import Environment
+import numpy as np
+from gymnasium.spaces import Box
 
+# during pickling the actions_spaces are reconstructed wrongly.
+# the _set_action_space method is inherited from Mujoco baseclass
+# which sets it to (2,)
+def new_set_action_space(self):
+    self.action_space = Box(
+        np.array([-1, -1, -1, -1]),
+        np.array([+1, +1, +1, +1]),
+        dtype=np.float64,
+    )
 
 class MetaWorldSetTaskEnv(Environment):
     """Environment form of a MetaWorld benchmark.
@@ -146,7 +157,10 @@ class MetaWorldSetTaskEnv(Environment):
         else:
             raise ValueError('kind should be either "train" or "test", not ' +
                              repr(self._kind))
+        for _class in self._classes.values():
+            _class._set_action_space = new_set_action_space
         self._env_list = list(self._classes.keys())
+
         if self._add_env_onehot:
             self._task_indices = {
                 env_name: index

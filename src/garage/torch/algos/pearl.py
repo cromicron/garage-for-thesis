@@ -282,17 +282,20 @@ class PEARL(MetaRLAlgorithm):
             # obtain initial set of samples from all train tasks
             if epoch == 0 or self._is_resuming:
                 for idx in range(self._num_train_tasks):
+                    print(idx)
                     self._task_idx = idx
                     self._obtain_samples(trainer, epoch,
                                          self._num_initial_steps, np.inf)
                     self._is_resuming = False
             train_paths = []
             prior_paths, posterior_paths, extra_paths = [], [], []
-
+            print("num steps per epoch", self._num_steps_per_epoch)
             for _ in range(self._num_steps_per_epoch):
-
+                print(_)
                 # obtain samples from random tasks
+                print("num staks sample", self._num_tasks_sample)
                 for _ in range(self._num_tasks_sample):
+                    print(_)
                     idx = np.random.randint(self._num_train_tasks)
                     self._task_idx = idx
                     self._context_replay_buffers[idx].clear()
