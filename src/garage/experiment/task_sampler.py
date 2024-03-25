@@ -10,6 +10,7 @@ from garage.envs import GymEnv, TaskNameWrapper, TaskOnehotWrapper
 from garage.sampler.env_update import (ExistingEnvUpdate, NewEnvUpdate,
                                        SetTaskUpdate)
 
+from gymnasium.spaces import Box
 # yapf: enable
 
 
@@ -234,6 +235,17 @@ class EnvPoolSampler(TaskSampler):
 MW_TASKS_PER_ENV = 50
 
 
+def return_action_space(environment):
+    action_space = environment.action_space
+    return action_space
+
+
+def new_set_action_space(self):
+    self.action_space = Box(
+        np.array([-1, -1, -1, -1]),
+        np.array([+1, +1, +1, +1]),
+        dtype=np.float64,
+    )
 class MetaWorldTaskSampler(TaskSampler):
     """TaskSampler that distributes a Meta-World benchmark across workers.
 
@@ -268,6 +280,9 @@ class MetaWorldTaskSampler(TaskSampler):
         else:
             raise ValueError('kind must be either "train" or "test", '
                              f'not {kind!r}')
+        # override the return_action_space method to prevent false dim bug
+        for env_name, env_cls in self._classes.items():
+            self._classes[env_name] = self.modified_env_class_factory(env_cls)
         self._task_indices = {}
         if add_env_onehot:
             if kind == 'test' or 'metaworld.ML' in repr(type(benchmark)):
@@ -291,6 +306,17 @@ class MetaWorldTaskSampler(TaskSampler):
         self._next_order_index = 0
         self._shuffle_tasks()
 
+    def modified_env_class_factory(self, original_class):
+        def new_set_action_space(self):
+            self.action_space = Box(
+                np.array([-1, -1, -1, -1]),
+                np.array([+1, +1, +1, +1]),
+                dtype=np.float64,
+            )
+
+        # Bind the new method to the original class
+        original_class._set_action_space = new_set_action_space
+        return original_class
     def _shuffle_tasks(self):
         """Reshuffles the task orders."""
         for tasks in self._task_orders.values():

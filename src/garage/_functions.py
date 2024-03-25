@@ -317,9 +317,9 @@ def log_performance(itr, batch, discount, prefix='Evaluation', w_b=True):
                            np.mean(episode_max_in_place_reward))
             tabular.record('EpisodeMeanMinInPlaceReward',
                            np.mean(episode_min_in_place_reward))
-    if w_b:
-        wandb.log({
-            f"{tabular._prefix_str}/{prefix}/AverageReturn": np.mean(undiscounted_returns),
-            f"{tabular._prefix_str}/{prefix}/SuccessRate": np.mean(success)
-        }, step=itr)
+    #if w_b:
+    #    wandb.log({
+    #        f"{tabular._prefix_str}{prefix}/AverageReturn": np.mean(undiscounted_returns),
+    #        f"{tabular._prefix_str}{prefix}/SuccessRate": np.mean(success)
+    #    }, step=itr)
     return undiscounted_returns
