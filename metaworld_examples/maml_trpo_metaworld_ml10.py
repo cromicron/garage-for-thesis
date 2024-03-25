@@ -22,10 +22,10 @@ from garage.trainer import Trainer
 @click.command()
 @click.option('--seed', type=int, default=1)
 @click.option('--epochs', type=int, default=2000)
-@click.option('--rollouts_per_task', type=int, default=1)
-@click.option('--meta_batch_size', type=int, default=10)
+@click.option('--rollouts_per_task', type=int, default=10)
+@click.option('--meta_batch_size', type=int, default=20)
 @click.option('--inner_lr', default=1e-4, type=float)
-@wrap_experiment(snapshot_mode='none', name_parameters='passed')
+@wrap_experiment(snapshot_mode='last', name_parameters='passed')
 def maml_trpo_metaworld_ml10(ctxt, seed, epochs, rollouts_per_task,
                              meta_batch_size, inner_lr):
     """Set up environment and algorithm and run the task.
