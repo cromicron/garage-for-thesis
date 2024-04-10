@@ -55,7 +55,10 @@ class GaussianMLPValueFunction(ValueFunction):
                  learn_std=True,
                  init_std=1.0,
                  layer_normalization=False,
-                 name='GaussianMLPValueFunction'):
+                 name='GaussianMLPValueFunction',
+                 normalize_inputs=True,
+                 normalize_outputs=True,
+                 ):
         super(GaussianMLPValueFunction, self).__init__(env_spec, name)
 
         input_dim = env_spec.observation_space.flat_dim
@@ -77,6 +80,14 @@ class GaussianMLPValueFunction(ValueFunction):
             max_std=None,
             std_parameterization='exp',
             layer_normalization=layer_normalization)
+        self.normalize_inputs = normalize_inputs
+        self.normalize_outputs = normalize_outputs
+        self.x_mean = 0
+        self.x_std = 1
+        self.y_mean = 0
+        self.y_std = 1
+
+
 
     def compute_loss(self, obs, returns):
         r"""Compute mean value of loss.
@@ -91,8 +102,10 @@ class GaussianMLPValueFunction(ValueFunction):
                 objective (float).
 
         """
-        dist = self.module(obs)
-        ll = dist.log_prob(returns.reshape(-1, 1))
+        x = (obs - self.x_mean) / self.x_std
+        dist = self.module(x)
+        ys = (returns - self.y_mean)/self.y_std
+        ll = dist.log_prob(ys.reshape(-1, 1))
         loss = -ll.mean()
         return loss
 
@@ -109,4 +122,5 @@ class GaussianMLPValueFunction(ValueFunction):
                 shape :math:`(P, O*)`.
 
         """
-        return self.module(obs).mean.flatten(-2)
+        x = (obs - self.x_mean) / self.x_std
+        return self.module(x).mean.flatten(-2)*self.y_std + self.y_mean

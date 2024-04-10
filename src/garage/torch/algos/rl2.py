@@ -5,7 +5,7 @@ This module contains RL2, RL2Worker and the environment wrapper for RL2.
 # yapf: disable
 import abc
 import collections
-
+import pickle
 import akro
 from dowel import logger
 import numpy as np
@@ -336,12 +336,14 @@ class RL2(MetaRLAlgorithm, abc.ABC):
         last_return = None
 
         for _ in trainer.step_epochs():
-            if trainer.step_itr % self._n_epochs_per_eval == 0:
+            if trainer.step_itr % self._n_epochs_per_eval == 1:
                 if self._meta_evaluator is not None:
                     self._meta_evaluator.evaluate(self)
-            trainer.step_episode = trainer.obtain_episodes(
-                trainer.step_itr,
-                env_update=self._task_sampler.sample(self._meta_batch_size))
+            #trainer.step_episode = trainer.obtain_episodes(
+            #    trainer.step_itr,
+            #    env_update=self._task_sampler.sample(self._meta_batch_size))
+            with open('episodes.pkl', 'rb') as file:
+                trainer.step_episode = pickle.load(file)
             last_return = self.train_once(trainer.step_itr,
                                           trainer.step_episode)
             trainer.step_itr += 1

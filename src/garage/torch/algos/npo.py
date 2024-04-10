@@ -2,14 +2,17 @@
 # pylint: disable=wrong-import-order
 # yapf: disable
 import collections
+import copy
 
 from dowel import logger, tabular
 import numpy as np
 import tensorflow as tf
-
+import torch
 from garage import log_performance, log_multitask_performance, make_optimizer
 from garage.np import explained_variance_1d, pad_batch_array
 from garage.np.algos import RLAlgorithm
+from garage.torch._functions import zero_optim_grads
+from garage.np. _functions import discount_cumsum
 from garage.tf import (center_advs, compile_function, compute_advantages,
                        discounted_returns, flatten_inputs, graph_inputs,
                        positive_advs)
@@ -129,7 +132,9 @@ class NPO(RLAlgorithm):
             if optimizer_args is None:
                 optimizer_args = dict()
             optimizer = FirstOrderOptimizer
-        optimizer_args["network_params"] = self.policy.parameters
+        optimizer_args_bl = copy.deepcopy(optimizer_args)
+        optimizer_args["model"] = self.policy
+        optimizer_args_bl["model"] = self._baseline
         self._check_entropy_configuration(entropy_method, center_adv,
                                           stop_entropy_gradient,
                                           use_neg_logli_entropy,
@@ -139,6 +144,7 @@ class NPO(RLAlgorithm):
             raise ValueError('Invalid pg_loss')
 
         self._optimizer = make_optimizer(optimizer, **optimizer_args)
+        self._bl_optimizer = make_optimizer(optimizer, **optimizer_args_bl)
         self._lr_clip_range = float(lr_clip_range)
         self._max_kl_step = float(max_kl_step)
         self._policy_ent_coeff = float(policy_ent_coeff)
@@ -154,21 +160,6 @@ class NPO(RLAlgorithm):
         self._episode_reward_mean = collections.deque(maxlen=100)
 
         self._sampler = sampler
-
-        #self._init_opt()
-
-    def _init_opt(self):
-        """Initialize optimizater."""
-        pol_loss_inputs, pol_opt_inputs = self._build_inputs()
-        self._policy_opt_inputs = pol_opt_inputs
-
-        pol_loss, pol_kl = self._build_policy_loss(pol_loss_inputs)
-        self._optimizer.update_opt(loss=pol_loss,
-                                   target=self.policy,
-                                   leq_constraint=(pol_kl, self._max_kl_step),
-                                   inputs=flatten_inputs(
-                                       self._policy_opt_inputs),
-                                   constraint_name='mean_kl')
 
     def train(self, trainer):
         """Obtain samplers and start actual training for each epoch.
@@ -487,8 +478,11 @@ class NPO(RLAlgorithm):
         policy_opt_input_values = self._policy_opt_input_values(
             episodes, baselines)
 
-        returns_tensor = self._f_returns(*policy_opt_input_values)
-        returns_tensor = np.squeeze(returns_tensor, -1)
+        #returns_tensor = discount_cumsum(
+        #    policy_opt_input_values[2], self._discount)
+        returns_tensor = np.stack([
+            discount_cumsum(reward, self._discount)
+            for reward in policy_opt_input_values[2]])
 
         paths = []
         valids = episodes.valids
@@ -496,13 +490,48 @@ class NPO(RLAlgorithm):
 
         # Compute returns
         for ret, val, ob in zip(returns_tensor, valids, observations):
-            returns = ret[val.astype(np.bool)]
-            obs = ob[val.astype(np.bool)]
+            returns = ret[val.astype(bool)]
+            obs = ob[val.astype(bool)]
             paths.append(dict(observations=obs, returns=returns))
 
         # Fit baseline
+        zero_optim_grads(self._bl_optimizer.optimizer)
         logger.log('Fitting baseline...')
-        self._baseline.fit(paths)
+        xs = np.concatenate([p['observations'] for p in paths])
+        if not isinstance(xs, np.ndarray) or len(xs.shape) > 2:
+            xs = self._env_spec.observation_space.flatten_n(xs)
+        ys = np.concatenate([p['returns'] for p in paths])
+        ys = ys.reshape((-1, 1))
+        if self._baseline.normalize_inputs:
+            self._baseline.x_mean = torch.tensor(
+                np.mean(xs, axis=0, keepdims=True), dtype=torch.float32
+            )
+            self._baseline.x_std = torch.tensor(
+                np.std(xs, axis=0, keepdims=True) + 1e-8, dtype=torch.float32
+            )
+        if self._baseline.normalize_outputs:
+            # recompute normalizing constants for outputs
+            self._baseline.y_mean = torch.tensor(
+                np.mean(ys, axis=0, keepdims=True), dtype=torch.float32
+            )
+            self._baseline.y_std = torch.tensor(
+                np.std(ys, axis=0, keepdims=True) + 1e-8, dtype=torch.float32
+            )
+        x_tensor =  torch.tensor(
+                xs, dtype=torch.float32
+            )
+        y_tensor = torch.tensor(ys, dtype=torch.float32)
+        with torch.no_grad():
+            loss_before = self._baseline.compute_loss(
+            x_tensor, y_tensor
+        )
+        tabular.record('{}/LossBefore'.format("Baseline"), loss_before)
+        self._bl_optimizer.optimize(x_tensor, y_tensor)
+        with torch.no_grad():
+            loss_after = self._baseline.compute_loss(
+                x_tensor, y_tensor
+            )
+        tabular.record('{}/LossAfter'.format("Baseline"), loss_after)
         return returns_tensor
 
     def _policy_opt_input_values(self, episodes, baselines):
@@ -516,11 +545,6 @@ class NPO(RLAlgorithm):
             list(np.ndarray): Flatten policy optimization input values.
 
         """
-        agent_infos = episodes.padded_agent_infos
-        policy_state_info_list = [
-            agent_infos[k] for k in self.policy.state_info_keys
-        ]
-
         actions = [
             self._env_spec.action_space.flatten_n(act)
             for act in episodes.actions_list
@@ -530,14 +554,14 @@ class NPO(RLAlgorithm):
                                          self.max_episode_length)
 
         # pylint: disable=unexpected-keyword-arg
-        policy_opt_input_values = self._policy_opt_inputs._replace(
-            obs_var=episodes.padded_observations,
-            action_var=padded_actions,
-            reward_var=episodes.padded_rewards,
-            baseline_var=baselines,
-            valid_var=episodes.valids,
-            policy_state_info_vars_list=policy_state_info_list,
-        )
+        policy_opt_input_values = [
+            episodes.padded_observations,
+            padded_actions,
+            episodes.padded_rewards,
+            baselines,
+            episodes.valids,
+            [],
+        ]
 
         return flatten_inputs(policy_opt_input_values)
 

@@ -1,7 +1,7 @@
 """Natural Policy Gradient Optimization."""
 from dowel import logger, tabular
 import numpy as np
-
+import torch
 from garage.np import explained_variance_1d, pad_batch_array
 from garage.torch.algos import NPO
 
@@ -68,9 +68,9 @@ class RL2NPO(NPO):
         """
         # Baseline predictions with all zeros for feeding inputs of Tensorflow
         baselines = np.zeros((len(episodes.lengths), max(episodes.lengths)))
-
         returns = self._fit_baseline_with_data(episodes, baselines)
-        baselines = self._get_baseline_prediction(episodes)
+        with torch.no_grad():
+            baselines = self._get_baseline_prediction(episodes)
 
         policy_opt_input_values = self._policy_opt_input_values(
             episodes, baselines)
@@ -113,7 +113,7 @@ class RL2NPO(NPO):
 
         """
         obs = [
-            self._baseline.predict({'observations': obs})
+            self._baseline.forward(torch.tensor(obs, dtype=torch.float32)).squeeze()
             for obs in episodes.observations_list
         ]
         return pad_batch_array(np.concatenate(obs), episodes.lengths,
