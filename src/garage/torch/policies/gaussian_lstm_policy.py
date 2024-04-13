@@ -109,9 +109,9 @@ class GaussianLSTMModule(nn.Module):
             "stds": stds,
         }
 
-    def init_hidden(self):
-        return (torch.zeros(1, 1, self.lstm_hidden_size),
-                torch.zeros(1, 1, self.lstm_hidden_size))
+    def init_hidden(self, batch_size=1):
+        return (torch.zeros(1, batch_size, self.lstm_hidden_size),
+                torch.zeros(1, batch_size, self.lstm_hidden_size))
 
 
 class GaussianLSTMPolicy(Policy):
@@ -174,6 +174,8 @@ class GaussianLSTMPolicy(Policy):
         if np.any(do_resets):
             self._prev_hiddens = tuple(h.repeat(len(do_resets), 1, 1) for h in self._init_hidden)
 
+    def reset_hidden(self, batch_size=1):
+        self._module.hidden = self._module.init_hidden(batch_size=batch_size)
     def get_action(self, observation):
         action, info = self.get_actions(observation.reshape(1, 1, -1))
         return action.squeeze(), {k: v[0] for k, v in info.items()}

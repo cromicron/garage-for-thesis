@@ -339,11 +339,11 @@ class RL2(MetaRLAlgorithm, abc.ABC):
             if trainer.step_itr % self._n_epochs_per_eval == 1:
                 if self._meta_evaluator is not None:
                     self._meta_evaluator.evaluate(self)
-            #trainer.step_episode = trainer.obtain_episodes(
-            #    trainer.step_itr,
-            #    env_update=self._task_sampler.sample(self._meta_batch_size))
-            with open('episodes.pkl', 'rb') as file:
-                trainer.step_episode = pickle.load(file)
+            trainer.step_episode = trainer.obtain_episodes(
+                trainer.step_itr,
+                env_update=self._task_sampler.sample(self._meta_batch_size))
+            #with open('episodes.pkl', 'rb') as file:
+            #    trainer.step_episode = pickle.load(file)
             last_return = self.train_once(trainer.step_itr,
                                           trainer.step_episode)
             trainer.step_itr += 1

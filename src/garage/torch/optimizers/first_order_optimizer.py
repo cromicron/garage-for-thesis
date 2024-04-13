@@ -43,24 +43,43 @@ class FirstOrderOptimizer:
         """
         self._loss_function = loss_function
 
-
-    def optimize(self, inputs, targets):
+    def optimize(self, inputs, targets=None):
         """Executes the optimization process.
 
         Args:
-            inputs (torch.Tensor): The input data.
-            targets (torch.Tensor): The target data.
+            inputs (torch.Tensor or list of torch.Tensor): The input data.
+            targets (torch.Tensor, optional): The target data.
         """
-        dataset = TensorDataset(inputs, targets)
+        # Ensure inputs is a list of tensors
+        if isinstance(inputs, torch.Tensor):
+            inputs = [inputs]  # Convert single tensor to a list of one tensor
+
+        # Create the dataset depending on whether targets are provided
+        if targets is not None:
+            dataset = TensorDataset(*inputs, targets)
+        else:
+            dataset = TensorDataset(*inputs)
+
+        # Create a DataLoader to handle batching
         dataloader = DataLoader(dataset, batch_size=self._batch_size,
                                 shuffle=True)
 
         prev_loss = float('inf')
         for epoch in range(self._max_optimization_epochs):
             epoch_loss = 0.0
-            for batch_inputs, batch_targets in dataloader:
+            for batch in dataloader:
                 self.optimizer.zero_grad()
-                loss = self._model.compute_loss(batch_inputs, batch_targets)
+
+                # Proper unpacking: Check if targets are included and unpack accordingly
+                if targets is not None:
+                    *batch_inputs, batch_targets = batch
+                    loss = self._loss_function(*batch_inputs,
+                                                    batch_targets)
+                else:
+                    batch_inputs = batch if len(inputs) > 1 else (batch[0],)
+                    loss = self._loss_function(*batch_inputs)
+                loss = loss[0] if isinstance(loss, (list, tuple)) else loss
+
                 loss.backward()
                 self.optimizer.step()
                 epoch_loss += loss.item()
@@ -68,15 +87,14 @@ class FirstOrderOptimizer:
             epoch_loss /= len(dataloader)
 
             if self._verbose:
-                print(f'{self._name} - Epoch {epoch + 1}, Loss: {epoch_loss}')
+                print(f'Epoch {epoch + 1}, Loss: {epoch_loss}')
 
             if self._callback:
                 self._callback(epoch, epoch_loss)
 
             if abs(prev_loss - epoch_loss) < self._tolerance:
                 if self._verbose:
-                    print(
-                        f"{self._name} - Early stopping due to tolerance level reached.")
+                    print("Early stopping due to tolerance level reached.")
                 break
 
             prev_loss = epoch_loss

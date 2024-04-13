@@ -11,9 +11,9 @@ import torch
 from garage import log_performance, log_multitask_performance, make_optimizer
 from garage.np import explained_variance_1d, pad_batch_array
 from garage.np.algos import RLAlgorithm
-from garage.torch._functions import zero_optim_grads
+from garage.torch._functions import zero_optim_grads, compute_advantages
 from garage.np. _functions import discount_cumsum
-from garage.tf import (center_advs, compile_function, compute_advantages,
+from garage.tf import (center_advs, compile_function,
                        discounted_returns, flatten_inputs, graph_inputs,
                        positive_advs)
 from garage.torch.optimizers import FirstOrderOptimizer
@@ -144,7 +144,9 @@ class NPO(RLAlgorithm):
             raise ValueError('Invalid pg_loss')
 
         self._optimizer = make_optimizer(optimizer, **optimizer_args)
+        self._optimizer.update_opt(self._policy_loss)
         self._bl_optimizer = make_optimizer(optimizer, **optimizer_args_bl)
+        self._bl_optimizer.update_opt(self._baseline.compute_loss)
         self._lr_clip_range = float(lr_clip_range)
         self._max_kl_step = float(max_kl_step)
         self._policy_ent_coeff = float(policy_ent_coeff)
@@ -335,7 +337,14 @@ class NPO(RLAlgorithm):
         #return policy_loss_inputs, policy_opt_inputs
 
     # pylint: disable=too-many-branches, too-many-statements
-    def _build_policy_loss(self, i):
+    def _policy_loss(
+        self,
+        states,
+        actions,
+        rewards,
+        baselines,
+        valids,
+    ):
         """Build policy loss and other output tensors.
 
         Args:
@@ -346,89 +355,80 @@ class NPO(RLAlgorithm):
             tf.Tensor: Mean policy KL divergence.
 
         """
-        policy_entropy = self._build_entropy_term(i)
-        rewards = i.reward_var
+        batch_size = states.shape[0]
+        self.policy.reset(do_resets= np.full(shape=batch_size, fill_value=True))
+        self.policy.reset_hidden(batch_size=batch_size)
+        dist = self.policy.forward(states)[0]
+        policy_entropy = self._entropy(dist, actions)
 
         if self._maximum_entropy:
-            with tf.name_scope('augmented_rewards'):
-                rewards = i.reward_var + (self._policy_ent_coeff *
-                                          policy_entropy)
+                rewards += self._policy_ent_coeff *  policy_entropy
 
-        with tf.name_scope('policy_loss'):
-            adv = compute_advantages(self._discount,
-                                     self._gae_lambda,
-                                     self.max_episode_length,
-                                     i.baseline_var,
-                                     rewards,
-                                     name='adv')
 
-            adv = tf.reshape(adv, [-1, self.max_episode_length])
-            # Optionally normalize advantages
-            eps = tf.constant(1e-8, dtype=tf.float32)
-            if self._center_adv:
-                adv = center_advs(adv, axes=[0], eps=eps)
+        adv = compute_advantages(self._discount,
+                                 self._gae_lambda,
+                                 self.max_episode_length,
+                                 baselines,
+                                 rewards,
+                                 )
 
-            if self._positive_adv:
-                adv = positive_advs(adv, eps)
+        adv = torch.reshape(adv, (-1, self.max_episode_length))
+        # Optionally normalize advantages
+        eps = 1e-8
 
-            old_policy_dist = self._old_policy_network.dist
-            policy_dist = self._policy_network.dist
+        if self._center_adv:
+            adv = center_advs(adv, axes=[0], eps=eps)
 
-            with tf.name_scope('kl'):
-                kl = old_policy_dist.kl_divergence(policy_dist)
-                pol_mean_kl = tf.reduce_mean(kl)
+        if self._positive_adv:
+            adv = positive_advs(adv, eps)
 
-            # Calculate vanilla loss
-            with tf.name_scope('vanilla_loss'):
-                ll = policy_dist.log_prob(i.action_var, name='log_likelihood')
-                vanilla = ll * adv
+        self._old_policy.reset(
+            do_resets=np.full(shape=batch_size, fill_value=True))
+        self._old_policy.reset_hidden(batch_size)
+        with torch.no_grad():
+            old_policy_dist = self._old_policy.forward(states)[0]
 
-            # Calculate surrogate loss
-            with tf.name_scope('surrogate_loss'):
-                lr = tf.exp(ll - old_policy_dist.log_prob(i.action_var))
-                surrogate = lr * adv
+        kl = torch.distributions.kl_divergence(old_policy_dist, dist)
+        pol_mean_kl = kl.mean()
 
-            # Finalize objective function
-            with tf.name_scope('loss'):
-                if self._pg_loss == 'vanilla':
-                    # VPG uses the vanilla objective
-                    obj = tf.identity(vanilla, name='vanilla_obj')
-                elif self._pg_loss == 'surrogate':
-                    # TRPO uses the standard surrogate objective
-                    obj = tf.identity(surrogate, name='surr_obj')
-                elif self._pg_loss == 'surrogate_clip':
-                    lr_clip = tf.clip_by_value(lr,
-                                               1 - self._lr_clip_range,
-                                               1 + self._lr_clip_range,
-                                               name='lr_clip')
-                    surr_clip = lr_clip * adv
-                    obj = tf.minimum(surrogate, surr_clip, name='surr_obj')
+        # Calculate vanilla loss
 
-                if self._entropy_regularzied:
-                    obj += self._policy_ent_coeff * policy_entropy
+        ll = dist.log_prob(actions).sum(axis=-1)
+        vanilla = ll * adv
 
-                # filter only the valid values
-                obj = tf.boolean_mask(obj, i.valid_var)
-                # Maximize E[surrogate objective] by minimizing
-                # -E_t[surrogate objective]
-                loss = -tf.reduce_mean(obj)
+        # Calculate surrogate loss
 
-            # Diagnostic functions
-            self._f_policy_kl = tf.compat.v1.get_default_session(
-            ).make_callable(pol_mean_kl,
-                            feed_list=flatten_inputs(self._policy_opt_inputs))
+        lr = torch.exp(ll - old_policy_dist.log_prob(actions).sum(axis=-1))
+        surrogate = lr * adv
 
-            self._f_rewards = tf.compat.v1.get_default_session().make_callable(
-                rewards, feed_list=flatten_inputs(self._policy_opt_inputs))
+        # Finalize objective function
 
-            returns = discounted_returns(self._discount,
-                                         self.max_episode_length, rewards)
-            self._f_returns = tf.compat.v1.get_default_session().make_callable(
-                returns, feed_list=flatten_inputs(self._policy_opt_inputs))
+        if self._pg_loss == 'vanilla':
+            # VPG uses the vanilla objective
+            obj = vanilla  # In PyTorch, just use the variable directly
+        elif self._pg_loss == 'surrogate':
+            # TRPO uses the standard surrogate objective
+            obj = surrogate  # In PyTorch, just use the variable directly
+        elif self._pg_loss == 'surrogate_clip':
+            # Clip the learning rate
+            lr_clip = torch.clamp(lr, min=1 - self._lr_clip_range,
+                                  max=1 + self._lr_clip_range)
+            surr_clip = lr_clip * adv
+            obj = torch.min(surrogate, surr_clip)  # Element-wise minimum
 
-            return loss, pol_mean_kl
+        if self._entropy_regularzied:
+            obj += self._policy_ent_coeff * policy_entropy
 
-    def _build_entropy_term(self, i):
+        # filter only the valid values
+        valid_var_bool = valids.bool()
+        # Apply the Boolean mask
+        obj = obj[valid_var_bool]
+        # Maximize E[surrogate objective] by minimizing
+        # -E_t[surrogate objective]
+        loss = -obj.mean()
+        return loss, pol_mean_kl
+
+    def _entropy(self, dist, actions):
         """Build policy entropy tensor.
 
         Args:
@@ -438,31 +438,18 @@ class NPO(RLAlgorithm):
             tf.Tensor: Policy entropy.
 
         """
-        pol_dist = self._policy_network.dist
-        with tf.name_scope('policy_entropy'):
-            if self._use_neg_logli_entropy:
-                policy_entropy = -pol_dist.log_prob(i.action_var,
-                                                    name='policy_log_likeli')
-            else:
-                policy_entropy = pol_dist.entropy()
+        if self._use_neg_logli_entropy:
+            policy_entropy = -dist.log_prob(actions)
+        else:
+            policy_entropy = dist.entropy()
 
-            # This prevents entropy from becoming negative for small policy std
-            if self._use_softplus_entropy:
-                policy_entropy = tf.nn.softplus(policy_entropy)
+        # This prevents entropy from becoming negative for small policy std
+        if self._use_softplus_entropy:
+            policy_entropy = torch.nn.functional.softplus(policy_entropy)
 
-            if self._stop_entropy_gradient:
-                policy_entropy = tf.stop_gradient(policy_entropy)
-        # dense form, match the shape of advantage
-        policy_entropy = tf.reshape(policy_entropy,
-                                    [-1, self.max_episode_length])
-        policy_std = tf.reshape(pol_dist.stddev(),
-                                    [-1, self.max_episode_length])
-        self._f_policy_stddev = compile_function(
-            flatten_inputs(self._policy_opt_inputs), policy_std)
-        self._f_policy_entropy = compile_function(
-            flatten_inputs(self._policy_opt_inputs), policy_entropy)
-
-        return policy_entropy
+        if self._stop_entropy_gradient:
+            policy_entropy = policy_entropy.detach()
+        return policy_entropy.sum(axis=-1)
 
     def _fit_baseline_with_data(self, episodes, baselines):
         """Update baselines from samples.

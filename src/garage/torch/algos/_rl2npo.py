@@ -74,17 +74,17 @@ class RL2NPO(NPO):
 
         policy_opt_input_values = self._policy_opt_input_values(
             episodes, baselines)
+        inputs = [torch.tensor(i, dtype=torch.float32) for i in policy_opt_input_values]
         # Train policy network
         logger.log('Computing loss before')
-        loss_before = self._optimizer.loss(policy_opt_input_values)
-        logger.log('Computing KL before')
-        policy_kl_before = self._f_policy_kl(*policy_opt_input_values)
+        with torch.no_grad():
+            loss_before, policy_kl_before = self._policy_loss(*inputs)
         logger.log('Optimizing')
-        self._optimizer.optimize(policy_opt_input_values)
-        logger.log('Computing KL after')
-        policy_kl = self._f_policy_kl(*policy_opt_input_values)
+
+        self._optimizer.optimize(inputs)
         logger.log('Computing loss after')
-        loss_after = self._optimizer.loss(policy_opt_input_values)
+        loss_after, policy_kl = self._policy_loss(*inputs)
+
         tabular.record('{}/LossBefore'.format(self.policy.name), loss_before)
         tabular.record('{}/LossAfter'.format(self.policy.name), loss_after)
         tabular.record('{}/dLoss'.format(self.policy.name),
@@ -92,14 +92,13 @@ class RL2NPO(NPO):
         tabular.record('{}/KLBefore'.format(self.policy.name),
                        policy_kl_before)
         tabular.record('{}/KL'.format(self.policy.name), policy_kl)
-        pol_ent = self._f_policy_entropy(*policy_opt_input_values)
-        tabular.record('{}/Entropy'.format(self.policy.name), np.mean(pol_ent))
-        pol_std = self._f_policy_stddev(*policy_opt_input_values)
-        std = np.mean(pol_std)
-        tabular.record('{}/StandardDeviation'.format(self.policy.name), std)
-        ev = explained_variance_1d(baselines, returns, episodes.valids)
-        tabular.record('{}/ExplainedVariance'.format(self._baseline.name), ev)
         self._old_policy.parameters = self.policy.parameters
+        self.policy.reset_hidden()
+        self.policy.reset()
+        self._old_policy.reset_hidden()
+        self._old_policy.reset()
+
+
 
     def _get_baseline_prediction(self, episodes):
         """Get baseline prediction.
