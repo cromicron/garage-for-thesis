@@ -55,7 +55,9 @@ class MAML:
                  outer_lr=1e-3,
                  num_grad_updates=1,
                  meta_evaluator=None,
-                 evaluate_every_n_epochs=1):
+                 evaluate_every_n_epochs=1,
+                 w_and_b=False,
+                 ):
         self._sampler = sampler
 
         self.max_episode_length = inner_algo.max_episode_length
@@ -74,6 +76,7 @@ class MAML:
                                               lr=_Default(outer_lr),
                                               eps=_Default(1e-5))
         self._evaluate_every_n_epochs = evaluate_every_n_epochs
+        self._w_and_b=w_and_b
 
     def train(self, trainer):
         """Obtain samples and start training for each epoch.
@@ -427,7 +430,9 @@ class MAML:
                     for path in task_paths[self._num_grad_updates].paths
                 ]),
             discount=self._inner_algo.discount,
-            name_map=name_map)
+            name_map=name_map,
+            w_b=self._w_and_b,
+        )
 
         with tabular.prefix(self._policy.name + '/'):
             tabular.record('LossBefore', loss_before)

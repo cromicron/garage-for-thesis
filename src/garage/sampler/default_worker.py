@@ -136,12 +136,14 @@ class DefaultWorker(Worker):
 
         actions = []
         rewards = []
+        rewards_raw = []
         env_infos = defaultdict(list)
         step_types = []
 
         for es in self._env_steps:
             actions.append(es.action)
             rewards.append(es.reward)
+            rewards_raw.append(es.reward_unnormalized)
             step_types.append(es.step_type)
             for k, v in es.env_info.items():
                 env_infos[k].append(v)
@@ -168,6 +170,7 @@ class DefaultWorker(Worker):
                             last_observations=np.asarray(last_observations),
                             actions=np.asarray(actions),
                             rewards=np.asarray(rewards),
+                            rewards_raw=np.asarray(rewards_raw),
                             step_types=np.asarray(step_types, dtype=StepType),
                             env_infos=dict(env_infos),
                             agent_infos=dict(agent_infos),

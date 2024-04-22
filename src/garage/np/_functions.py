@@ -25,8 +25,8 @@ def explained_variance_1d(ypred, y, valids=None):
 
     """
     if valids is not None:
-        ypred = ypred[valids.astype(np.bool)]
-        y = y[valids.astype(np.bool)]
+        ypred = ypred[valids.astype(bool)]
+        y = y[valids.astype(bool)]
 
     assert y.ndim == 1 and ypred.ndim == 1
 

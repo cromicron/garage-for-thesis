@@ -58,6 +58,7 @@ class GaussianMLPValueFunction(ValueFunction):
                  name='GaussianMLPValueFunction',
                  normalize_inputs=True,
                  normalize_outputs=True,
+                 load_weights=False,
                  ):
         super(GaussianMLPValueFunction, self).__init__(env_spec, name)
 
@@ -86,7 +87,9 @@ class GaussianMLPValueFunction(ValueFunction):
         self.x_std = 1
         self.y_mean = 0
         self.y_std = 1
-
+        self.weights_dir = "saved_models/rl_2_value_funct.pth"
+        if load_weights:
+            self.load_weights()
 
 
     def compute_loss(self, obs, returns):
@@ -124,3 +127,11 @@ class GaussianMLPValueFunction(ValueFunction):
         """
         x = (obs - self.x_mean) / self.x_std
         return self.module(x).mean.flatten(-2)*self.y_std + self.y_mean
+
+    def save_weights(self):
+        params = self.module.state_dict()
+        torch.save(params, self.weights_dir)
+
+    def load_weights(self):
+        params = torch.load(self.weights_dir)
+        self.module.load_state_dict(params)

@@ -82,7 +82,9 @@ class RL2PPO(RL2):
                  entropy_method='no_entropy',
                  meta_evaluator=None,
                  n_epochs_per_eval=10,
-                 name='PPO'):
+                 name='PPO',
+                 w_and_b=False,
+                 ):
         if optimizer_args is None:
             optimizer_args = dict()
         super().__init__(meta_batch_size=meta_batch_size,
@@ -110,4 +112,6 @@ class RL2PPO(RL2):
                          entropy_method=entropy_method,
                          meta_evaluator=meta_evaluator,
                          n_epochs_per_eval=n_epochs_per_eval,
-                         name=name)
+                         name=name,
+                         w_and_b=w_and_b,
+                         )

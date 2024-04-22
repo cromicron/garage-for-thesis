@@ -2,7 +2,7 @@
 
 import abc
 from dataclasses import dataclass
-from typing import Dict
+from typing import Dict, Optional
 
 import akro
 import numpy as np
@@ -115,6 +115,7 @@ class EnvStep:
     observation: np.ndarray
     env_info: Dict[str, np.ndarray or dict]
     step_type: StepType
+    reward_unnormalized: Optional[float]
 
     @property
     def first(self):

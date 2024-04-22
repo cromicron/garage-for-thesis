@@ -9,7 +9,7 @@ import pickle
 import akro
 from dowel import logger
 import numpy as np
-
+import time
 from garage import (EnvSpec, EnvStep, EpisodeBatch, log_multitask_performance,
                     StepType, Wrapper)
 from garage.np.algos import MetaRLAlgorithm
@@ -93,7 +93,9 @@ class RL2Env(Wrapper):
                        reward=es.reward,
                        observation=next_obs,
                        env_info=es.env_info,
-                       step_type=es.step_type)
+                       step_type=es.step_type,
+                       reward_unnormalized=es.reward_unnormalized,
+                       )
 
     def _create_rl2_obs_space(self):
         """Create observation space for RL2.
@@ -305,9 +307,17 @@ class RL2(MetaRLAlgorithm, abc.ABC):
 
     """
 
-    def __init__(self, env_spec, episodes_per_trial, meta_batch_size,
-                 task_sampler, meta_evaluator, n_epochs_per_eval,
-                 **inner_algo_args):
+    def __init__(
+        self,
+        env_spec,
+        episodes_per_trial,
+        meta_batch_size,
+        task_sampler,
+        meta_evaluator,
+        n_epochs_per_eval,
+        w_and_b=False,
+        **inner_algo_args
+    ):
         self._env_spec = env_spec
         _inner_env_spec = EnvSpec(
             env_spec.observation_space, env_spec.action_space,
@@ -321,6 +331,8 @@ class RL2(MetaRLAlgorithm, abc.ABC):
         self._task_sampler = task_sampler
         self._meta_evaluator = meta_evaluator
         self._sampler = self._inner_algo._sampler
+        self._save_weights = True
+        self._w_and_b = w_and_b
 
     def train(self, trainer):
         """Obtain samplers and start actual training for each epoch.
@@ -338,14 +350,15 @@ class RL2(MetaRLAlgorithm, abc.ABC):
         for _ in trainer.step_epochs():
             if trainer.step_itr % self._n_epochs_per_eval == 1:
                 if self._meta_evaluator is not None:
-                    self._meta_evaluator.evaluate(self)
+                    self._meta_evaluator.evaluate(
+                        self, itr_multiplier=self._n_epochs_per_eval
+                    )
             trainer.step_episode = trainer.obtain_episodes(
                 trainer.step_itr,
                 env_update=self._task_sampler.sample(self._meta_batch_size))
-            #with open('episodes.pkl', 'rb') as file:
-            #    trainer.step_episode = pickle.load(file)
             last_return = self.train_once(trainer.step_itr,
                                           trainer.step_episode)
+
             trainer.step_itr += 1
 
         return last_return
@@ -363,7 +376,7 @@ class RL2(MetaRLAlgorithm, abc.ABC):
         """
         episodes, average_return = self._process_samples(itr, episodes)
         logger.log('Optimizing policy...')
-        self._inner_algo.optimize_policy(episodes)
+        self._inner_algo.optimize_policy(episodes, save_weights=self._save_weights)
         return average_return
 
     def get_exploration_policy(self):
@@ -454,7 +467,12 @@ class RL2(MetaRLAlgorithm, abc.ABC):
             name_map = dict(enumerate(names))
 
         undiscounted_returns = log_multitask_performance(
-            itr, episodes, self._inner_algo._discount, name_map=name_map)
+            itr,
+            episodes,
+            self._inner_algo._discount,
+            name_map=name_map,
+            w_b=self._w_and_b
+        )
 
         average_return = np.mean(undiscounted_returns)
 
@@ -502,6 +520,7 @@ class RL2(MetaRLAlgorithm, abc.ABC):
             last_observations=episode_list[-1].last_observations,
             actions=actions,
             rewards=np.concatenate([ep.rewards for ep in episode_list]),
+            rewards_raw=np.concatenate([ep.rewards_raw for ep in episode_list]),
             env_infos=env_infos,
             agent_infos=agent_infos,
             step_types=np.concatenate([ep.step_types for ep in episode_list]),

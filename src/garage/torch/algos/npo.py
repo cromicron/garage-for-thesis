@@ -134,7 +134,9 @@ class NPO(RLAlgorithm):
             optimizer = FirstOrderOptimizer
         optimizer_args_bl = copy.deepcopy(optimizer_args)
         optimizer_args["model"] = self.policy
+        optimizer_args["name"] = "policy"
         optimizer_args_bl["model"] = self._baseline
+        optimizer_args_bl["name"] = "value"
         self._check_entropy_configuration(entropy_method, center_adv,
                                           stop_entropy_gradient,
                                           use_neg_logli_entropy,
@@ -384,7 +386,6 @@ class NPO(RLAlgorithm):
 
         self._old_policy.reset(
             do_resets=np.full(shape=batch_size, fill_value=True))
-        self._old_policy.reset_hidden(batch_size)
         with torch.no_grad():
             old_policy_dist = self._old_policy.forward(states)[0]
 

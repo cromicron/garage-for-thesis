@@ -69,7 +69,9 @@ class MAMLTRPO(MAML):
                  meta_batch_size=40,
                  num_grad_updates=1,
                  meta_evaluator=None,
-                 evaluate_every_n_epochs=1):
+                 evaluate_every_n_epochs=1,
+                 w_and_b=False,
+                 ):
 
         policy_optimizer = OptimizerWrapper(
             (torch.optim.Adam, dict(lr=inner_lr)), policy)
@@ -104,4 +106,6 @@ class MAMLTRPO(MAML):
                          outer_lr=outer_lr,
                          num_grad_updates=num_grad_updates,
                          meta_evaluator=meta_evaluator,
-                         evaluate_every_n_epochs=evaluate_every_n_epochs)
+                         evaluate_every_n_epochs=evaluate_every_n_epochs,
+                         w_and_b=w_and_b,
+                         )

@@ -17,10 +17,19 @@ class FirstOrderOptimizer:
         name (str): The name for this optimizer instance, used in logging.
     """
 
-    def __init__(self, model, optimizer_class=torch.optim.Adam,
-                 learning_rate=1e-3,
-                 max_optimization_epochs=1000, tolerance=1e-6, batch_size=32,
-                 callback=None, verbose=False, name='FirstOrderOptimizer'):
+    def __init__(
+        self,
+        model,
+        optimizer_class=torch.optim.Adam,
+        learning_rate=1e-3,
+        max_optimization_epochs=1000,
+        tolerance=1e-6,
+        batch_size=32,
+        callback=None,
+        verbose=False,
+        name='FirstOrderOptimizer',
+        load_state=False
+    ):
         self._model = model
         self._optimizer_class = optimizer_class
         self._learning_rate = learning_rate
@@ -33,7 +42,10 @@ class FirstOrderOptimizer:
         # Initializing placeholders for internal use
         self.optimizer = self._optimizer_class(model.parameters(),
                                                 lr=self._learning_rate)
+        self.state_dir = f"saved_models/rl_2_optim_{name}.pth"
         self._loss_function = None
+        if load_state:
+            self.load_optimizer_state()
 
     def update_opt(self, loss_function):
         """Sets up the optimizer and loss function based on provided arguments.
@@ -98,3 +110,11 @@ class FirstOrderOptimizer:
                 break
 
             prev_loss = epoch_loss
+
+    def save_optimizer_state(self):
+        params = self.optimizer.state_dict()
+        torch.save(params, self.state_dir)
+
+    def load_optimizer_state(self):
+        params = torch.load(self.state_dir)
+        self.optimizer.load_state_dict(params)

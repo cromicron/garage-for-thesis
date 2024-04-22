@@ -96,7 +96,7 @@ class Trainer:
 
     """
 
-    def __init__(self, snapshot_config):
+    def __init__(self, snapshot_config, start_at=0):
         self._snapshotter = Snapshotter(snapshot_config.snapshot_dir,
                                         snapshot_config.snapshot_mode,
                                         snapshot_config.snapshot_gap)
@@ -106,7 +106,7 @@ class Trainer:
 
         self._seed = None
         self._train_args = None
-        self._stats = ExperimentStats(total_itr=0,
+        self._stats = ExperimentStats(total_itr=start_at,
                                       total_env_steps=0,
                                       total_epoch=0,
                                       last_episode=None)
@@ -357,7 +357,9 @@ class Trainer:
               batch_size=None,
               plot=False,
               store_episodes=False,
-              pause_for_plot=False):
+              pause_for_plot=False,
+              start_epoch=0,
+              ):
         """Start training.
 
         Args:
@@ -384,7 +386,7 @@ class Trainer:
                                      plot=plot,
                                      store_episodes=store_episodes,
                                      pause_for_plot=pause_for_plot,
-                                     start_epoch=0)
+                                     start_epoch=start_epoch)
 
         self._plot = plot
         self._start_worker()

@@ -526,7 +526,7 @@ class EpisodeBatch(TimeStepBatch):
     lengths: np.ndarray
 
     def __init__(self, env_spec, episode_infos, observations,
-                 last_observations, actions, rewards, env_infos, agent_infos,
+                 last_observations, actions, rewards, rewards_raw, env_infos, agent_infos,
                  step_types, lengths):  # noqa: D102
         # lengths
         if len(lengths.shape) != 1:
@@ -580,6 +580,7 @@ class EpisodeBatch(TimeStepBatch):
         # No need for next_observations, it was replaced with a property
         object.__setattr__(self, 'actions', actions)
         object.__setattr__(self, 'rewards', rewards)
+        object.__setattr__(self, 'rewards_raw', rewards_raw)
         object.__setattr__(self, 'env_infos', env_infos)
         object.__setattr__(self, 'agent_infos', agent_infos)
         object.__setattr__(self, 'step_types', step_types)
@@ -626,6 +627,7 @@ class EpisodeBatch(TimeStepBatch):
                 [batch.last_observations for batch in batches]),
             actions=np.concatenate([batch.actions for batch in batches]),
             rewards=np.concatenate([batch.rewards for batch in batches]),
+            rewards_raw=np.concatenate([batch.rewards_raw for batch in batches]),
             env_infos=env_infos,
             agent_infos=agent_infos,
             step_types=np.concatenate([batch.step_types for batch in batches]),
@@ -665,6 +667,7 @@ class EpisodeBatch(TimeStepBatch):
                 last_observations=np.asarray([self.last_observations[i]]),
                 actions=self.actions[start:stop],
                 rewards=self.rewards[start:stop],
+                rewards_raw=self.rewards_raw[start:stop],
                 env_infos=slice_nested_dict(self.env_infos, start, stop),
                 agent_infos=slice_nested_dict(self.agent_infos, start, stop),
                 step_types=self.step_types[start:stop],
@@ -690,6 +693,8 @@ class EpisodeBatch(TimeStepBatch):
                     current environment).
                 * rewards (np.ndarray): Array of rewards of shape (T,) (1D
                     array of length timesteps).
+                * rewards_raw (np.ndarray): Array of unprocessed rewards
+                    of shape (T,) (1D array of length timesteps).
                 * agent_infos (dict[str, np.ndarray]): Dictionary of stacked,
                     non-flattened `agent_info` arrays.
                 * env_infos (dict[str, np.ndarray]): Dictionary of stacked,
@@ -716,6 +721,8 @@ class EpisodeBatch(TimeStepBatch):
                 self.actions[start:stop],
                 'rewards':
                 self.rewards[start:stop],
+                'rewards_raw':
+                    self.rewards_raw[start:stop],
                 'env_infos':
                 {k: v[start:stop]
                  for (k, v) in self.env_infos.items()},
@@ -802,6 +809,7 @@ class EpisodeBatch(TimeStepBatch):
                    last_observations=last_observations,
                    actions=stacked_paths['actions'],
                    rewards=stacked_paths['rewards'],
+                   rewards_raw=stacked_paths['rewards_raw'],
                    env_infos=stacked_paths['env_infos'],
                    agent_infos=stacked_paths['agent_infos'],
                    step_types=stacked_paths['step_types'],
@@ -909,6 +917,18 @@ class EpisodeBatch(TimeStepBatch):
 
         """
         return pad_batch_array(self.rewards, self.lengths,
+                               self.env_spec.max_episode_length)
+
+    @property
+    def padded_rewards_raw(self):
+        """Padded rewards.
+
+        Returns:
+            np.ndarray: Padded rewards with shape of
+                :math:`(N, max_episode_length)`.
+
+        """
+        return pad_batch_array(self.rewards_raw, self.lengths,
                                self.env_spec.max_episode_length)
 
     @property

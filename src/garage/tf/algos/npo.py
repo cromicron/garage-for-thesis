@@ -496,8 +496,8 @@ class NPO(RLAlgorithm):
 
         # Compute returns
         for ret, val, ob in zip(returns_tensor, valids, observations):
-            returns = ret[val.astype(np.bool)]
-            obs = ob[val.astype(np.bool)]
+            returns = ret[val.astype(bool)]
+            obs = ob[val.astype(bool)]
             paths.append(dict(observations=obs, returns=returns))
 
         # Fit baseline

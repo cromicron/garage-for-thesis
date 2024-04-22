@@ -59,7 +59,7 @@ class RL2NPO(NPO):
 
     """
 
-    def optimize_policy(self, episodes):
+    def optimize_policy(self, episodes, save_weights=False):
         """Optimize policy.
 
         Args:
@@ -92,11 +92,14 @@ class RL2NPO(NPO):
         tabular.record('{}/KLBefore'.format(self.policy.name),
                        policy_kl_before)
         tabular.record('{}/KL'.format(self.policy.name), policy_kl)
-        self._old_policy.parameters = self.policy.parameters
-        self.policy.reset_hidden()
+        self._old_policy.load_parameters(self.policy.get_parameters())
         self.policy.reset()
-        self._old_policy.reset_hidden()
         self._old_policy.reset()
+        if save_weights:
+            self.policy.save_weights()
+            self._optimizer.save_optimizer_state()
+            self._baseline.save_weights()
+            self._bl_optimizer.save_optimizer_state()
 
 
 

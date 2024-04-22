@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from garage.torch.policies.stochastic_policy import Policy
 from copy import deepcopy
-
+from typing import OrderedDict
 class RL2LSTMCritic(nn.Module):
     def __init__(self, input_dim, lstm_hidden_size=128, hidden_layers=(128, 128), lr=0.001):
         super(RL2LSTMCritic, self).__init__()
@@ -113,7 +113,6 @@ class GaussianLSTMModule(nn.Module):
         return (torch.zeros(1, batch_size, self.lstm_hidden_size),
                 torch.zeros(1, batch_size, self.lstm_hidden_size))
 
-
 class GaussianLSTMPolicy(Policy):
     def __init__(
         self,
@@ -123,6 +122,7 @@ class GaussianLSTMPolicy(Policy):
         name='GaussianLSTMPolicy',
         module_params=None,
         state_include_action=True,
+        load_weights=False
     ):
         super().__init__(
             env_spec=env_spec,
@@ -149,6 +149,9 @@ class GaussianLSTMPolicy(Policy):
         self._prev_actions = None
         self._prev_hiddens = None
         self._init_hidden = deepcopy(self._module.hidden)
+        self.weights_dir = "saved_models/rl_2_lstm.pth"
+        if load_weights:
+            self.load_weights()
 
     def forward(self, x):
         # Process input sequence through LSTM
@@ -173,6 +176,7 @@ class GaussianLSTMPolicy(Policy):
         # Reset hidden states for LSTM, assuming do_resets affects all states equally
         if np.any(do_resets):
             self._prev_hiddens = tuple(h.repeat(len(do_resets), 1, 1) for h in self._init_hidden)
+        self.reset_hidden(batch_size=do_resets.shape[0])
 
     def reset_hidden(self, batch_size=1):
         self._module.hidden = self._module.init_hidden(batch_size=batch_size)
@@ -195,26 +199,6 @@ class GaussianLSTMPolicy(Policy):
         if self._state_include_action:
             info['prev_action'] = np.copy(action)
         return action, info
-    def build(self, state_input, name=None):
-        """Build policy.
-
-        Args:
-            state_input (tf.Tensor) : State input.
-            name (str): Name of the policy, which is also the name scope.
-
-        Returns:
-            tfp.distributions.MultivariateNormalDiag: Policy distribution.
-            tf.Tensor: Step means, with shape :math:`(N, S^*)`.
-            tf.Tensor: Step log std, with shape :math:`(N, S^*)`.
-            tf.Tensor: Step hidden state, with shape :math:`(N, S^*)`.
-            tf.Tensor: Initial hidden state, with shape :math:`(S^*)`.
-
-        """
-        _, step_input_var, step_hidden_var = self.inputs
-        return super().build(state_input,
-                             step_input_var,
-                             step_hidden_var,
-                             name=name)
     @property
     def state_info_specs(self):
         """State info specifcation.
@@ -250,3 +234,17 @@ class GaussianLSTMPolicy(Policy):
             state_include_action=self._state_include_action,
         )
         return new_policy
+
+    def load_parameters(self, new_parameters: OrderedDict):
+        self._module.load_state_dict(new_parameters)
+
+    def get_parameters(self):
+        return self._module.state_dict()
+
+    def save_weights(self):
+        params = self.get_parameters()
+        torch.save(params, self.weights_dir)
+
+    def load_weights(self):
+        params = torch.load(self.weights_dir)
+        self.load_parameters(params)
