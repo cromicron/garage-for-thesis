@@ -1,7 +1,7 @@
 """An environment wrapper that normalizes action, observation and reward."""
 import akro
 import numpy as np
-
+import copy
 from garage import EnvStep, Wrapper
 
 
@@ -113,7 +113,8 @@ class NormalizedEnv(Wrapper):
                        reward=reward * self._scale_reward,
                        observation=next_obs,
                        env_info=es.env_info,
-                       step_type=es.step_type)
+                       step_type=es.step_type,
+                       reward_unnormalized=copy.copy(es.reward))
 
     def _update_obs_estimate(self, obs):
         flat_obs = self._env.observation_space.flatten(obs)

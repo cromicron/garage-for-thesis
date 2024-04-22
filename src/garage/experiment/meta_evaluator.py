@@ -64,7 +64,7 @@ class MetaEvaluator:
         self._test_sampler = None
         self._max_episode_length = None
 
-    def evaluate(self, algo, test_episodes_per_task=None):
+    def evaluate(self, algo, test_episodes_per_task=None, itr_multiplier=1):
         """Evaluate the Meta-RL algorithm on the test tasks.
 
         Args:
@@ -110,7 +110,7 @@ class MetaEvaluator:
 
         with tabular.prefix(self._prefix + '/' if self._prefix else ''):
             log_multitask_performance(
-                self._eval_itr,
+                self._eval_itr * itr_multiplier,
                 EpisodeBatch.concatenate(*adapted_episodes),
                 getattr(algo, 'discount', 1.0),
                 name_map=name_map)

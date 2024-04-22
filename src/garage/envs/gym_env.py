@@ -274,7 +274,8 @@ class GymEnv(Environment):
                        reward=reward,
                        observation=observation,
                        env_info=info,
-                       step_type=step_type)
+                       step_type=step_type,
+                       reward_unnormalized=None)
 
     def render(self, mode):
         """Renders the environment.
