@@ -11,7 +11,7 @@ from garage.envs import MetaWorldSetTaskEnv, normalize
 from garage.experiment import (MetaEvaluator, MetaWorldTaskSampler,
                                SetTaskSampler)
 from garage.experiment.deterministic import set_seed
-from garage.sampler import RaySampler
+from garage.sampler import LocalSampler as RaySampler
 from garage.tf.algos import RL2PPO
 from garage.tf.algos.rl2 import RL2Env, RL2Worker
 from garage.tf.baselines import GaussianMLPBaseline
@@ -47,6 +47,7 @@ def rl2_ppo_metaworld_ml10(ctxt,
 
     """
     set_seed(seed)
+    w_and_b = False
     with TFTrainer(snapshot_config=ctxt) as trainer:
         ml10 = metaworld.ML10()
         tasks = MetaWorldTaskSampler(
@@ -118,7 +119,9 @@ def rl2_ppo_metaworld_ml10(ctxt,
                       meta_evaluator=meta_evaluator,
                       episodes_per_trial=episode_per_task,
                       use_neg_logli_entropy=True,
-                      n_epochs_per_eval=100)
+                      n_epochs_per_eval=100,
+                      w_and_b=w_and_b,
+                      )
 
         trainer.setup(algo, envs)
 

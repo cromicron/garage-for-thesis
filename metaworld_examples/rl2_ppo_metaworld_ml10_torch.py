@@ -4,7 +4,6 @@
 # yapf: disable
 import click
 import metaworld
-import torch
 
 from garage import wrap_experiment
 from garage.envs import MetaWorldSetTaskEnv, normalize
@@ -15,10 +14,9 @@ from garage.sampler import RaySampler
 from garage.torch.algos import RL2PPO
 from garage.torch.algos.rl2 import RL2Env, RL2Worker
 from garage.torch.value_functions import GaussianMLPValueFunction
-from garage.tf.optimizers import FirstOrderOptimizer
 from garage.torch.policies import GaussianLSTMPolicy
 from garage.trainer import Trainer
-import ray
+import wandb
 # yapf: enable
 
 
@@ -31,7 +29,8 @@ def rl2_ppo_metaworld_ml10(ctxt,
                            entropy_coefficient=5e-6,
                            meta_batch_size=10,
                            n_epochs=10000,
-                           episode_per_task=10):
+                           episode_per_task=2,
+                           ):
     """Train RL2 PPO with ML10 environment.
 
     Args:
@@ -44,10 +43,10 @@ def rl2_ppo_metaworld_ml10(ctxt,
         meta_batch_size (int): Meta batch size.
         n_epochs (int): Total number of epochs for training.
         episode_per_task (int): Number of training episode per task.
-
     """
     set_seed(seed)
-
+    w_and_b = False
+    load_state = True
     ml10 = metaworld.ML10()
     tasks = MetaWorldTaskSampler(
         ml10, 'train',
@@ -70,13 +69,15 @@ def rl2_ppo_metaworld_ml10(ctxt,
     policy = GaussianLSTMPolicy(
         env.spec,
         state_include_action=False,
-        name="policy"
+        name="policy",
+        load_weights=load_state,
     )
 
 
     baseline = GaussianMLPValueFunction(
         env_spec=env.spec,
         hidden_sizes=(128, 128),
+        load_weights=load_state
         )
 
     envs = tasks.sample(meta_batch_size)
@@ -84,7 +85,7 @@ def rl2_ppo_metaworld_ml10(ctxt,
         agents=policy,
         envs=envs,
         max_episode_length=env_spec.max_episode_length,
-        is_tf_worker=True,
+        is_tf_worker=False,
         n_workers=meta_batch_size,
         worker_class=RL2Worker,
         worker_args=dict(n_episodes_per_trial=episode_per_task))
@@ -100,7 +101,8 @@ def rl2_ppo_metaworld_ml10(ctxt,
                   lr_clip_range=0.2,
                   optimizer_args=dict(batch_size=32,
                                       max_optimization_epochs=10,
-                                      learning_rate=5e-4),
+                                      learning_rate=5e-4,
+                                      load_state=load_state),
                   stop_entropy_gradient=True,
                   entropy_method='max',
                   policy_ent_coeff=entropy_coefficient,
@@ -108,13 +110,28 @@ def rl2_ppo_metaworld_ml10(ctxt,
                   meta_evaluator=meta_evaluator,
                   episodes_per_trial=episode_per_task,
                   use_neg_logli_entropy=True,
-                  n_epochs_per_eval=100)
+                  n_epochs_per_eval=20,
+                  w_and_b=w_and_b,
+                  )
 
     trainer.setup(algo, envs)
-
+    if w_and_b:
+        wandb.init(project="rl2-garage-metaworld_10", config={
+            # Your configuration parameters here
+            "inner_rl": 5e-4,
+            "meta_batch_size": meta_batch_size,
+            "discount": 0.99,
+            "gae_lambda": 1,
+            "num_grad_updates": 1,
+            "policy_ent_coeff": 5e-5,
+            "episode_per_task": episode_per_task
+            # etc.
+        })
     trainer.train(n_epochs=n_epochs,
                   batch_size=episode_per_task *
-                  env_spec.max_episode_length * meta_batch_size)
+                  env_spec.max_episode_length * meta_batch_size,
+                  )
+
 
 
 rl2_ppo_metaworld_ml10()
