@@ -4,7 +4,8 @@
 # yapf: disable
 import click
 import metaworld
-
+import math
+import torch
 from garage import wrap_experiment
 from garage.envs import MetaWorldSetTaskEnv, normalize
 from garage.experiment import (MetaEvaluator, MetaWorldTaskSampler,
@@ -14,7 +15,7 @@ from garage.sampler import RaySampler
 from garage.torch.algos import RL2PPO
 from garage.torch.algos.rl2 import RL2Env, RL2Worker
 from garage.torch.value_functions import GaussianMLPValueFunction
-from garage.torch.policies import GaussianLSTMPolicy
+from garage.torch.policies import GaussianGRUPolicy
 from garage.trainer import Trainer
 import wandb
 # yapf: enable
@@ -29,7 +30,7 @@ def rl2_ppo_metaworld_ml10(ctxt,
                            entropy_coefficient=5e-6,
                            meta_batch_size=10,
                            n_epochs=10000,
-                           episode_per_task=2,
+                           episode_per_task=10,
                            ):
     """Train RL2 PPO with ML10 environment.
 
@@ -44,8 +45,10 @@ def rl2_ppo_metaworld_ml10(ctxt,
         n_epochs (int): Total number of epochs for training.
         episode_per_task (int): Number of training episode per task.
     """
+    start_epoch = 769
+    n_epochs_per_eval = 50
     set_seed(seed)
-    w_and_b = False
+    w_and_b = True
     load_state = True
     ml10 = metaworld.ML10()
     tasks = MetaWorldTaskSampler(
@@ -60,16 +63,25 @@ def rl2_ppo_metaworld_ml10(ctxt,
     meta_evaluator = MetaEvaluator(test_task_sampler=test_task_sampler,
                                    n_exploration_eps=episode_per_task,
                                    n_test_tasks=num_test_envs * 2,
-                                   n_test_episodes=10)
+                                   n_test_episodes=10,
+                                   start_eval_itr=math.ceil(start_epoch/n_epochs_per_eval),
+                                   w_and_b=w_and_b
+                                   )
 
     env_updates = tasks.sample(10)
     env = env_updates[0]()
 
     env_spec = env.spec
-    policy = GaussianLSTMPolicy(
-        env.spec,
+    policy = GaussianGRUPolicy(
+        name='policy',
+        hidden_dim=256,
+        env_spec=env_spec,
         state_include_action=False,
-        name="policy",
+        std_share_network=True,
+        init_std=1.,
+        min_std=0.5,
+        max_std=1.5,
+        output_nonlinearity=torch.tanh,
         load_weights=load_state,
     )
 
@@ -89,7 +101,7 @@ def rl2_ppo_metaworld_ml10(ctxt,
         n_workers=meta_batch_size,
         worker_class=RL2Worker,
         worker_args=dict(n_episodes_per_trial=episode_per_task))
-    trainer = Trainer(ctxt)
+    trainer = Trainer(ctxt, start_at=start_epoch)
     algo = RL2PPO(meta_batch_size=meta_batch_size,
                   task_sampler=tasks,
                   env_spec=env_spec,
@@ -110,24 +122,25 @@ def rl2_ppo_metaworld_ml10(ctxt,
                   meta_evaluator=meta_evaluator,
                   episodes_per_trial=episode_per_task,
                   use_neg_logli_entropy=True,
-                  n_epochs_per_eval=20,
+                  n_epochs_per_eval=n_epochs_per_eval,
                   w_and_b=w_and_b,
                   )
 
     trainer.setup(algo, envs)
     if w_and_b:
-        wandb.init(project="rl2-garage-metaworld_10", config={
-            # Your configuration parameters here
-            "inner_rl": 5e-4,
-            "meta_batch_size": meta_batch_size,
-            "discount": 0.99,
-            "gae_lambda": 1,
-            "num_grad_updates": 1,
-            "policy_ent_coeff": 5e-5,
-            "episode_per_task": episode_per_task
-            # etc.
-        })
-    trainer.train(n_epochs=n_epochs,
+        wandb.init(project="rl2-garage-metaworld_10",
+                   config={
+                       # Your configuration parameters here
+                       "inner_rl": 5e-4,
+                       "meta_batch_size": meta_batch_size,
+                       "discount": 0.99,
+                       "gae_lambda": 1,
+                       "num_grad_updates": 1,
+                       "policy_ent_coeff": 5e-5,
+                       "episode_per_task": episode_per_task
+                       # Additional parameters can be added here
+                   })
+    trainer.train(n_epochs=n_epochs-start_epoch,
                   batch_size=episode_per_task *
                   env_spec.max_episode_length * meta_batch_size,
                   )
