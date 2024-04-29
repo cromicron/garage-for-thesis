@@ -46,7 +46,10 @@ class MetaEvaluator:
                  prefix='MetaTest',
                  test_task_names=None,
                  worker_class=DefaultWorker,
-                 worker_args=None):
+                 worker_args=None,
+                 start_eval_itr = 0,
+                 w_and_b=False
+                 ):
         self._test_task_sampler = test_task_sampler
         self._worker_class = worker_class
         if worker_args is None:
@@ -58,11 +61,12 @@ class MetaEvaluator:
         self._n_test_tasks = n_test_tasks
         self._n_test_episodes = n_test_episodes
         self._n_exploration_eps = n_exploration_eps
-        self._eval_itr = 0
+        self._eval_itr = start_eval_itr
         self._prefix = prefix
         self._test_task_names = test_task_names
         self._test_sampler = None
         self._max_episode_length = None
+        self._w_and_b = w_and_b
 
     def evaluate(self, algo, test_episodes_per_task=None, itr_multiplier=1):
         """Evaluate the Meta-RL algorithm on the test tasks.
@@ -75,7 +79,7 @@ class MetaEvaluator:
         if test_episodes_per_task is None:
             test_episodes_per_task = self._n_test_episodes
         adapted_episodes = []
-        logger.log('Sampling for adapation and meta-testing...')
+        logger.log(f'Sampling for adapation and meta-testing ...')
         env_updates = self._test_task_sampler.sample(self._n_test_tasks)
         if self._test_sampler is None:
             env = env_updates[0]()
@@ -113,5 +117,7 @@ class MetaEvaluator:
                 self._eval_itr * itr_multiplier,
                 EpisodeBatch.concatenate(*adapted_episodes),
                 getattr(algo, 'discount', 1.0),
-                name_map=name_map)
+                name_map=name_map,
+                w_b=self._w_and_b
+            )
         self._eval_itr += 1

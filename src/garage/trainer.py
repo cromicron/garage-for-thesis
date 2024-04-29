@@ -118,7 +118,7 @@ class Trainer:
 
         self._start_time = None
         self._itr_start_time = None
-        self.step_itr = None
+        self.step_itr = start_at
         self.step_episode = None
 
         # only used for off-policy algorithms
@@ -357,8 +357,7 @@ class Trainer:
               batch_size=None,
               plot=False,
               store_episodes=False,
-              pause_for_plot=False,
-              start_epoch=0,
+              pause_for_plot=False
               ):
         """Start training.
 
@@ -386,7 +385,7 @@ class Trainer:
                                      plot=plot,
                                      store_episodes=store_episodes,
                                      pause_for_plot=pause_for_plot,
-                                     start_epoch=start_epoch)
+                                     start_epoch= self.step_itr)
 
         self._plot = plot
         self._start_worker()

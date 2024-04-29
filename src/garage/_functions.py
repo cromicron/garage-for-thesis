@@ -169,7 +169,9 @@ def obtain_evaluation_episodes(policy,
             eps = rollout(env,
                           policy,
                           max_episode_length=max_episode_length,
-                          deterministic=deterministic)
+                          deterministic=deterministic,
+                          animated=True,
+                          )
             episodes.append(eps)
     return EpisodeBatch.from_list(env.spec, episodes)
 
@@ -239,7 +241,7 @@ def log_multitask_performance(itr, batch, discount, name_map=None, w_b=False):
     )
 
 
-def log_performance(itr, batch, discount, prefix='Evaluation', w_b=True):
+def log_performance(itr, batch, discount, prefix='Evaluation', w_b=False):
     """Evaluate the performance of an algorithm on a batch of episodes.
 
     Args:

@@ -526,8 +526,10 @@ class EpisodeBatch(TimeStepBatch):
     lengths: np.ndarray
 
     def __init__(self, env_spec, episode_infos, observations,
-                 last_observations, actions, rewards, rewards_raw, env_infos, agent_infos,
-                 step_types, lengths):  # noqa: D102
+                 last_observations, actions, rewards, env_infos, agent_infos,
+                 step_types, lengths, rewards_raw=None):  # noqa: D102
+        if rewards_raw is None:
+            rewards_raw = rewards
         # lengths
         if len(lengths.shape) != 1:
             raise ValueError(
@@ -802,7 +804,8 @@ class EpisodeBatch(TimeStepBatch):
                                   dtype=StepType)
             stacked_paths['step_types'] = step_types
             del stacked_paths['dones']
-
+        if "rewards_raw" not in stacked_paths.keys():
+            stacked_paths["rewards_raw"] = stacked_paths["rewards"]
         return cls(env_spec=env_spec,
                    episode_infos=episode_infos,
                    observations=observations,
