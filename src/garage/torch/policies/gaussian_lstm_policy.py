@@ -113,6 +113,8 @@ class GaussianLSTMModule(nn.Module):
         return (torch.zeros(1, batch_size, self.lstm_hidden_size),
                 torch.zeros(1, batch_size, self.lstm_hidden_size))
 
+
+
 class GaussianLSTMPolicy(Policy):
     def __init__(
         self,

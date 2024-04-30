@@ -13,6 +13,8 @@ from garage.torch.policies.tanh_gaussian_mlp_policy import (
     TanhGaussianMLPPolicy)
 from garage.torch.policies.gaussian_lstm_policy import (
     GaussianLSTMPolicy)
+from garage.torch.policies.gaussian_gru_policy import (
+    GaussianGRUPolicy)
 
 __all__ = [
     'CategoricalCNNPolicy',
@@ -21,6 +23,7 @@ __all__ = [
     'DiscreteQFArgmaxPolicy',
     'GaussianMLPPolicy',
     'GaussianLSTMPolicy',
+    'GaussianGRUPolicy',
     'Policy',
     'TanhGaussianMLPPolicy',
     'ContextConditionedPolicy',
