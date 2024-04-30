@@ -227,7 +227,7 @@ class GymEnv(Environment):
         )
 
         if self._visualize:
-            self._env.render(mode='human')
+            self._env.render()
 
         reward = float(reward) if not isinstance(reward, float) else reward
         self._step_cnt += 1
@@ -288,12 +288,12 @@ class GymEnv(Environment):
             object: the return value for render, depending on each env.
 
         """
-        self._validate_render_mode(mode)
-        return self._env.render(mode)
+        self._validate_render_mode()
+        return self._env.render()
 
     def visualize(self):
         """Creates a visualization of the environment."""
-        self._env.render(mode='human')
+        self._env.render()
         self._visualize = True
 
     def close(self):
