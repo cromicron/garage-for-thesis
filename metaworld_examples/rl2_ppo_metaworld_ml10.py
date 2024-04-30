@@ -11,7 +11,7 @@ from garage.envs import MetaWorldSetTaskEnv, normalize
 from garage.experiment import (MetaEvaluator, MetaWorldTaskSampler,
                                SetTaskSampler)
 from garage.experiment.deterministic import set_seed
-from garage.sampler import LocalSampler as RaySampler
+from garage.sampler import RaySampler
 from garage.tf.algos import RL2PPO
 from garage.tf.algos.rl2 import RL2Env, RL2Worker
 from garage.tf.baselines import GaussianMLPBaseline
@@ -31,7 +31,7 @@ def rl2_ppo_metaworld_ml10(ctxt,
                            entropy_coefficient=5e-6,
                            meta_batch_size=10,
                            n_epochs=10000,
-                           episode_per_task=10):
+                           episode_per_task=2):
     """Train RL2 PPO with ML10 environment.
 
     Args:

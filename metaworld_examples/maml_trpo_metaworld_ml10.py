@@ -22,8 +22,8 @@ from garage.trainer import Trainer
 @click.command()
 @click.option('--seed', type=int, default=1)
 @click.option('--epochs', type=int, default=2000)
-@click.option('--rollouts_per_task', type=int, default=10)
-@click.option('--meta_batch_size', type=int, default=20)
+@click.option('--rollouts_per_task', type=int, default=2)
+@click.option('--meta_batch_size', type=int, default=10)
 @click.option('--inner_lr', default=1e-4, type=float)
 @wrap_experiment(snapshot_mode='last', name_parameters='passed')
 def maml_trpo_metaworld_ml10(ctxt, seed, epochs, rollouts_per_task,
@@ -45,7 +45,7 @@ def maml_trpo_metaworld_ml10(ctxt, seed, epochs, rollouts_per_task,
 
     """
     set_seed(seed)
-
+    w_and_b=False
     ml10 = metaworld.ML10()
     tasks = MetaWorldTaskSampler(
         ml10,
@@ -65,7 +65,7 @@ def maml_trpo_metaworld_ml10(ctxt, seed, epochs, rollouts_per_task,
                                min_std=0.5,
                                max_std=1.5,
                                std_mlp_type='share_mean_std')
-
+    policy._module.load_state_dict(torch.load("data/maml_weights.pth"))
     value_function = LinearFeatureBaseline(env_spec=env.spec)
 
     meta_evaluator = MetaEvaluator(test_task_sampler=test_sampler,
@@ -95,21 +95,23 @@ def maml_trpo_metaworld_ml10(ctxt, seed, epochs, rollouts_per_task,
         policy_ent_coeff=5e-5,
         stop_entropy_gradient=True,
         center_adv=False,
+        w_and_b=w_and_b,
     )
-    wandb.init("maml-ml10",config={
-    # Your configuration parameters here
-    "inner_rl": inner_lr,
-    "meta_batch_size": meta_batch_size,
-    "discount": 0.99,
-    "gae_lambda": 1,
-    "num_grad_updates": 1,
-    "policy_ent_coeff": 5e-5,
-    "rollouts_per_task": rollouts_per_task
-    # etc.
-})
+    if w_and_b:
+        wandb.init("maml-ml10-test",config={
+            "inner_rl": inner_lr,
+            "meta_batch_size": meta_batch_size,
+            "discount": 0.99,
+            "gae_lambda": 1,
+            "num_grad_updates": 1,
+            "policy_ent_coeff": 5e-5,
+            "rollouts_per_task": rollouts_per_task
+        })
     trainer.setup(algo, env)
-    trainer.train(n_epochs=epochs,
-                  batch_size=rollouts_per_task * env.spec.max_episode_length)
+    trainer.train(
+        n_epochs=epochs,
+        batch_size=rollouts_per_task * env.spec.max_episode_length,
+    )
 
 
 maml_trpo_metaworld_ml10()
