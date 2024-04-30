@@ -201,6 +201,9 @@ class SAC(RLAlgorithm):
                         dict(observation=path['observations'],
                              action=path['actions'],
                              reward=path['rewards'].reshape(-1, 1),
+                             constraint=np.array(
+                                 int(path['env_infos']['constraint'])
+                             ).reshape(-1, 1),
                              next_observation=path['next_observations'],
                              terminal=np.array([
                                  step_type == StepType.TERMINAL
@@ -238,6 +241,7 @@ class SAC(RLAlgorithm):
             samples = self.replay_buffer.sample_transitions(
                 self._buffer_batch_size)
             samples = as_torch_dict(samples)
+            samples["reward"] = samples["reward"] - 25* samples["constraint"]
             policy_loss, qf1_loss, qf2_loss = self.optimize_policy(samples)
             self._update_targets()
 
