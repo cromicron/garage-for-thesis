@@ -348,14 +348,23 @@ class RL2(MetaRLAlgorithm, abc.ABC):
         last_return = None
 
         for _ in trainer.step_epochs():
-            if trainer.step_itr % self._n_epochs_per_eval == 1:
+            if trainer.step_itr % self._n_epochs_per_eval == 0:
                 if self._meta_evaluator is not None:
                     self._meta_evaluator.evaluate(
                         self, itr_multiplier=self._n_epochs_per_eval
                     )
-            trainer.step_episode = trainer.obtain_episodes(
-                trainer.step_itr,
-                env_update=self._task_sampler.sample(self._meta_batch_size))
+            valid_eps = False
+            while not valid_eps:
+
+                trainer.step_episode = trainer.obtain_episodes(
+                    trainer.step_itr,
+                    env_update=self._task_sampler.sample(self._meta_batch_size))
+                valid_eps = True
+                for b in range(self._meta_batch_size):
+                    if b not in trainer.step_episode.agent_infos["batch_idx"]:
+                        valid_eps = False
+                        logger.log("b not in batch indices")
+
             last_return = self.train_once(trainer.step_itr,
                                           trainer.step_episode)
 

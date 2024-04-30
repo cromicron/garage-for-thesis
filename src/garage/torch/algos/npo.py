@@ -359,8 +359,7 @@ class NPO(RLAlgorithm):
         """
         batch_size = states.shape[0]
         self.policy.reset(do_resets= np.full(shape=batch_size, fill_value=True))
-        self.policy.reset_hidden(batch_size=batch_size)
-        dist = self.policy.forward(states)[0]
+        dist, _ = self.policy.forward(states)
         policy_entropy = self._entropy(dist, actions)
 
         if self._maximum_entropy:
@@ -387,7 +386,7 @@ class NPO(RLAlgorithm):
         self._old_policy.reset(
             do_resets=np.full(shape=batch_size, fill_value=True))
         with torch.no_grad():
-            old_policy_dist = self._old_policy.forward(states)[0]
+            old_policy_dist, _ = self._old_policy.forward(states)
 
         kl = torch.distributions.kl_divergence(old_policy_dist, dist)
         pol_mean_kl = kl.mean()
