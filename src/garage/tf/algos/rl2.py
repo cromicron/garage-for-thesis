@@ -340,7 +340,7 @@ class RL2(MetaRLAlgorithm, abc.ABC):
         for _ in trainer.step_epochs():
             if trainer.step_itr % self._n_epochs_per_eval == 0:
                 if self._meta_evaluator is not None:
-                    self._meta_evaluator.evaluate(self)
+                    self._meta_evaluator.evaluate(self, itr_multiplier=self._n_epochs_per_eval)
             trainer.step_episode = trainer.obtain_episodes(
                 trainer.step_itr,
                 env_update=self._task_sampler.sample(self._meta_batch_size))

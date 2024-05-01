@@ -5,7 +5,8 @@
 import click
 import metaworld
 import tensorflow as tf
-
+import math
+import wandb
 from garage import wrap_experiment
 from garage.envs import MetaWorldSetTaskEnv, normalize
 from garage.experiment import (MetaEvaluator, MetaWorldTaskSampler,
@@ -31,7 +32,7 @@ def rl2_ppo_metaworld_ml10(ctxt,
                            entropy_coefficient=5e-6,
                            meta_batch_size=10,
                            n_epochs=10000,
-                           episode_per_task=2):
+                           episode_per_task=10):
     """Train RL2 PPO with ML10 environment.
 
     Args:
@@ -46,8 +47,10 @@ def rl2_ppo_metaworld_ml10(ctxt,
         episode_per_task (int): Number of training episode per task.
 
     """
+    start_epoch = 0
+    n_epochs_per_eval = 50
     set_seed(seed)
-    w_and_b = False
+    w_and_b = True
     with TFTrainer(snapshot_config=ctxt) as trainer:
         ml10 = metaworld.ML10()
         tasks = MetaWorldTaskSampler(
@@ -62,7 +65,11 @@ def rl2_ppo_metaworld_ml10(ctxt,
         meta_evaluator = MetaEvaluator(test_task_sampler=test_task_sampler,
                                        n_exploration_eps=episode_per_task,
                                        n_test_tasks=num_test_envs * 2,
-                                       n_test_episodes=10)
+                                       n_test_episodes=10,
+                                       start_eval_itr=math.ceil(
+                                           start_epoch / n_epochs_per_eval),
+                                       w_and_b=w_and_b
+                                       )
 
         env_updates = tasks.sample(10)
         env = env_updates[0]()
@@ -119,12 +126,24 @@ def rl2_ppo_metaworld_ml10(ctxt,
                       meta_evaluator=meta_evaluator,
                       episodes_per_trial=episode_per_task,
                       use_neg_logli_entropy=True,
-                      n_epochs_per_eval=100,
+                      n_epochs_per_eval=n_epochs_per_eval,
                       w_and_b=w_and_b,
                       )
 
         trainer.setup(algo, envs)
-
+        if w_and_b:
+            wandb.init(project="rl2-garage-metaworld_10-tf",
+                       config={
+                           # Your configuration parameters here
+                           "inner_rl": 5e-4,
+                           "meta_batch_size": meta_batch_size,
+                           "discount": 0.99,
+                           "gae_lambda": 1,
+                           "num_grad_updates": 1,
+                           "policy_ent_coeff": 5e-5,
+                           "episode_per_task": episode_per_task
+                           # Additional parameters can be added here
+                       })
         trainer.train(n_epochs=n_epochs,
                       batch_size=episode_per_task *
                       env_spec.max_episode_length * meta_batch_size)
