@@ -88,6 +88,7 @@ class GaussianMLPValueFunction(ValueFunction):
         self.y_mean = 0
         self.y_std = 1
         self.weights_dir = "saved_models/rl_2_value_funct.pth"
+        self.load_weights_from_disc = load_weights
         if load_weights:
             self.load_weights()
 
