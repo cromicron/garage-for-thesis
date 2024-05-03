@@ -277,7 +277,7 @@ class Environment(abc.ABC):
         """
 
     @abc.abstractmethod
-    def render(self, mode):
+    def render(self):
         """Renders the environment.
 
         The set of supported modes varies per environment. By convention,
@@ -310,10 +310,6 @@ class Environment(abc.ABC):
                         raise ValueError('Supported render modes are {}, but '
                                          'got render mode {} instead.'.format(
                                              self.render_modes, mode))
-
-        Args:
-            mode (str): the mode to render with. The string must be present in
-                `self.render_modes`.
 
         """
 
@@ -437,18 +433,14 @@ class Wrapper(Environment):
         """
         return self._env.reset()
 
-    def render(self, mode):
+    def render(self):
         """Render the wrapped environment.
-
-        Args:
-            mode (str): the mode to render with. The string must be
-                present in `self.render_modes`.
 
         Returns:
             object: the return value for render, depending on each env.
 
         """
-        return self._env.render(mode)
+        return self._env.render()
 
     def visualize(self):
         """Creates a visualization of the wrapped environment."""
