@@ -339,6 +339,7 @@ class RL2(MetaRLAlgorithm, abc.ABC):
         save_weights=True,
         w_and_b=False,
         render_every_i=99999999,
+        run_in_episodes=0,
         **inner_algo_args
     ):
         self._env_spec = env_spec
@@ -357,8 +358,9 @@ class RL2(MetaRLAlgorithm, abc.ABC):
         self._save_weights = save_weights
         self._w_and_b = w_and_b
         self._render_every_i = render_every_i
+        self._run_in_episodes = run_in_episodes
 
-    def train(self, trainer, run_in_episodes=0):
+    def train(self, trainer):
         """Obtain samplers and start actual training for each epoch.
 
         Args:
@@ -372,7 +374,7 @@ class RL2(MetaRLAlgorithm, abc.ABC):
 
         """
         last_return = None
-        for r in range(run_in_episodes):
+        for r in range(self._run_in_episodes):
             trainer.obtain_episodes(
                 trainer.step_itr,
                 env_update=self._meta_evaluator._test_task_sampler.sample(self._meta_batch_size))

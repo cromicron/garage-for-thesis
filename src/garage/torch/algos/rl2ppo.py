@@ -89,6 +89,7 @@ class RL2PPO(RL2):
                  save_weights=True,
                  w_and_b=False,
                  render_every_i=999999,
+                 run_in_episodes=0,
                  ):
         if optimizer_args is None:
             optimizer_args = dict()
@@ -124,4 +125,5 @@ class RL2PPO(RL2):
                          save_weights=save_weights,
                          w_and_b=w_and_b,
                          render_every_i=render_every_i,
+                         run_in_episodes=run_in_episodes,
                          )

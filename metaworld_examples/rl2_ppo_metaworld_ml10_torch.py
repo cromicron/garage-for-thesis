@@ -45,11 +45,12 @@ def rl2_ppo_metaworld_ml10(ctxt,
         n_epochs (int): Total number of epochs for training.
         episode_per_task (int): Number of training episode per task.
     """
-    start_epoch = 0
+    start_epoch = 581
     n_epochs_per_eval = 50
+    run_in_episodes = 2
     set_seed(seed)
-    w_and_b = False
-    load_state = False
+    w_and_b = True
+    load_state = True
     ml10 = metaworld.ML10()
     tasks = MetaWorldTaskSampler(
         ml10, 'train',
@@ -123,7 +124,9 @@ def rl2_ppo_metaworld_ml10(ctxt,
                   episodes_per_trial=episode_per_task,
                   use_neg_logli_entropy=True,
                   n_epochs_per_eval=n_epochs_per_eval,
+                  save_weights=False,
                   w_and_b=w_and_b,
+                  run_in_episodes=run_in_episodes,
                   )
 
     trainer.setup(algo, envs)
