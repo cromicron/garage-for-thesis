@@ -277,7 +277,7 @@ class GymEnv(Environment):
                        step_type=step_type,
                        reward_unnormalized=None)
 
-    def render(self, mode):
+    def render(self, mode=None):
         """Renders the environment.
 
         Args:
@@ -288,7 +288,7 @@ class GymEnv(Environment):
             object: the return value for render, depending on each env.
 
         """
-        self._validate_render_mode()
+        #self._validate_render_mode(mode)
         return self._env.render()
 
     def visualize(self):

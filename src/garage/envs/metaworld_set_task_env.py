@@ -48,7 +48,8 @@ class MetaWorldSetTaskEnv(Environment):
                  benchmark=None,
                  kind=None,
                  wrapper=None,
-                 add_env_onehot=False):
+                 add_env_onehot=False,
+                 render_mode=None):
         self._constructed_from_benchmark = benchmark is not None
         if self._constructed_from_benchmark:
             assert kind is not None
@@ -69,6 +70,7 @@ class MetaWorldSetTaskEnv(Environment):
         self._next_env = 0
         self._next_task_index = 0
         self._task_indices = None
+        self._render_mode = render_mode
         if self._benchmark is not None:
             self._fill_tasks()
             self.set_task(self._tasks_by_env[self._env_list[0]][0])
@@ -181,7 +183,7 @@ class MetaWorldSetTaskEnv(Environment):
         env_name = self._current_task.env_name
         env = self._envs.get(env_name, None)
         if env is None:
-            env = self._classes[env_name]()
+            env = self._classes[env_name](render_mode=self._render_mode)
             env.set_task(self._current_task)
             env = envs.GymEnv(env, max_episode_length=env.max_path_length)
             env = envs.TaskNameWrapper(env, task_name=env_name)
@@ -231,7 +233,10 @@ class MetaWorldSetTaskEnv(Environment):
             EnvStep: The environment step resulting from the action.
 
         """
-        return self._current_env.step(action)
+        step = self._current_env.step(action)
+        if self._render_mode:
+            self._current_env.render()
+        return step
 
     def reset(self):
         """Reset the wrapped env.

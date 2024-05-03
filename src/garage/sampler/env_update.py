@@ -83,20 +83,20 @@ class SetTaskUpdate(EnvUpdate):
         self._task = task
         self._wrapper_cons = wrapper_constructor
 
-    def _make_env(self):
+    def _make_env(self, render_mode=None):
         """Construct the environment, wrapping if necessary.
 
         Returns:
             garage.Env: The (possibly wrapped) environment.
 
         """
-        env = self._env_type()
+        env = self._env_type(render_mode=render_mode)
         env.set_task(self._task)
         if self._wrapper_cons is not None:
             env = self._wrapper_cons(env, self._task)
         return env
 
-    def __call__(self, old_env=None):
+    def __call__(self, old_env=None, render_mode=None):
         """Update an environment.
 
         Args:
@@ -110,7 +110,7 @@ class SetTaskUpdate(EnvUpdate):
         # We need exact type equality, not just a subtype
         # pylint: disable=unidiomatic-typecheck
         if old_env is None:
-            return self._make_env()
+            return self._make_env(render_mode=render_mode)
         elif type(getattr(old_env, 'unwrapped', old_env)) != self._env_type:
             warnings.warn('SetTaskEnvUpdate is closing an environment. This '
                           'may indicate a very slow TaskSampler setup.')

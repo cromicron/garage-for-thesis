@@ -48,7 +48,8 @@ class MetaEvaluator:
                  worker_class=DefaultWorker,
                  worker_args=None,
                  start_eval_itr = 0,
-                 w_and_b=False
+                 w_and_b=False,
+                 render_examples=False,
                  ):
         self._test_task_sampler = test_task_sampler
         self._worker_class = worker_class
@@ -66,7 +67,7 @@ class MetaEvaluator:
         self._test_task_names = test_task_names
         self._test_sampler = None
         self._max_episode_length = None
-        self._w_and_b = w_and_b
+        self._w_and_b = w_and_b,
 
     def evaluate(self, algo, test_episodes_per_task=None, itr_multiplier=1):
         """Evaluate the Meta-RL algorithm on the test tasks.

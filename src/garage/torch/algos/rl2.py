@@ -27,11 +27,12 @@ class RL2Env(Wrapper):
 
     Args:
         env (Environment): An env that will be wrapped.
+        n_constraints (Int): Number of constraints
     """
 
-    def __init__(self, env):
+    def __init__(self, env, n_constraints=0):
         super().__init__(env)
-
+        self._n_constraints = n_constraints
         self._observation_space = self._create_rl2_obs_space()
         self._spec = EnvSpec(
             action_space=self.action_space,
@@ -62,9 +63,13 @@ class RL2Env(Wrapper):
 
         """
         first_obs, episode_info = self._env.reset()
-        first_obs = np.concatenate(
-            [first_obs,
-             np.zeros(self._env.action_space.shape), [0], [0]])
+        first_obs = np.concatenate([
+            first_obs,
+            np.zeros(self._env.action_space.shape),  # Zeros for action space
+            [0], [0],  # Original zeros
+            np.zeros(self._n_constraints)
+            # Zeros based on the number of constraints
+        ])
 
         return first_obs, episode_info
 
@@ -84,9 +89,23 @@ class RL2Env(Wrapper):
         """
         es = self._env.step(action)
         next_obs = es.observation
-        next_obs = np.concatenate([
-            next_obs, action, [es.reward], [es.step_type == StepType.TERMINAL]
-        ])
+
+        if self._n_constraints != 0:
+            next_obs = np.concatenate([
+                next_obs,
+                action,
+                [es.reward],
+                [es.step_type == StepType.TERMINAL],
+                [float(es.env_info["constraint"])]
+            ])
+        else:
+            next_obs = np.concatenate([
+                next_obs,
+                action,
+                [es.reward],
+                [es.step_type == StepType.TERMINAL]
+            ])
+
 
         return EnvStep(env_spec=self.spec,
                        action=action,
@@ -108,7 +127,9 @@ class RL2Env(Wrapper):
         action_flat_dim = np.prod(self._env.action_space.shape)
         return akro.Box(low=-np.inf,
                         high=np.inf,
-                        shape=(obs_flat_dim + action_flat_dim + 1 + 1, ))
+                        shape=(
+                            obs_flat_dim + action_flat_dim + 1 + 1 + self._n_constraints,
+                        ))
 
 
 class RL2Worker(DefaultWorker):
@@ -315,7 +336,9 @@ class RL2(MetaRLAlgorithm, abc.ABC):
         task_sampler,
         meta_evaluator,
         n_epochs_per_eval,
+        save_weights=True,
         w_and_b=False,
+        render_every_i=99999999,
         **inner_algo_args
     ):
         self._env_spec = env_spec
@@ -331,23 +354,52 @@ class RL2(MetaRLAlgorithm, abc.ABC):
         self._task_sampler = task_sampler
         self._meta_evaluator = meta_evaluator
         self._sampler = self._inner_algo._sampler
-        self._save_weights = True
+        self._save_weights = save_weights
         self._w_and_b = w_and_b
+        self._render_every_i = render_every_i
 
-    def train(self, trainer):
+    def train(self, trainer, run_in_episodes=0):
         """Obtain samplers and start actual training for each epoch.
 
         Args:
             trainer (Trainer): Experiment trainer, which provides services
                 such as snapshotting and sampler control.
+            run_in_episodes (Int): How many episodes to run, before training
+                to set normalized env values properly
 
         Returns:
             float: The average return in last epoch.
 
         """
         last_return = None
+        for r in range(run_in_episodes):
+            trainer.obtain_episodes(
+                trainer.step_itr,
+                env_update=self._meta_evaluator._test_task_sampler.sample(self._meta_batch_size))
+
+            trainer.obtain_episodes(
+                trainer.step_itr,
+                env_update=self._task_sampler.sample(self._meta_batch_size))
+
 
         for _ in trainer.step_epochs():
+            if trainer.step_itr % self._render_every_i == 0:
+                samples = self._meta_evaluator._test_task_sampler.sample(2)
+                worker = RL2Worker(
+                    seed=1,
+                    max_episode_length=self.max_episode_length,
+                    worker_number=1,
+                    n_episodes_per_trial=1
+                )
+                for env in samples:
+                    worker.update_env(env, render_mode="human")
+                    policy = self.get_exploration_policy()
+                    worker.update_agent(policy)
+                    eps = worker.rollout()
+                    adapted_policy = self.adapt_policy(policy, eps)
+                    worker.update_agent(adapted_policy)
+                    worker.rollout()
+
             if trainer.step_itr % self._n_epochs_per_eval == 0:
                 if self._meta_evaluator is not None:
                     self._meta_evaluator.evaluate(

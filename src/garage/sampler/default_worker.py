@@ -68,7 +68,7 @@ class DefaultWorker(Worker):
         elif agent_update is not None:
             self.agent = agent_update
 
-    def update_env(self, env_update):
+    def update_env(self, env_update, render_mode=None):
         """Use any non-None env_update as a new environment.
 
         A simple env update function. If env_update is not None, it should be
@@ -86,7 +86,7 @@ class DefaultWorker(Worker):
             TypeError: If env_update is not one of the documented types.
 
         """
-        self.env, _ = _apply_env_update(self.env, env_update)
+        self.env, _ = _apply_env_update(self.env, env_update, render_mode=render_mode)
 
     def start_episode(self):
         """Begin a new episode."""
