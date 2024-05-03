@@ -85,6 +85,10 @@ class NPO(RLAlgorithm):
                  policy,
                  baseline,
                  sampler,
+                 lagrangian_start=None,
+                 constraint_threshold=0,
+                 lagrangian_lr=0.01,
+                 baseline_const=None,
                  scope=None,
                  discount=0.99,
                  gae_lambda=1,
@@ -116,6 +120,11 @@ class NPO(RLAlgorithm):
         self.max_episode_length = env_spec.max_episode_length
         self._env_spec = env_spec
         self._baseline = baseline
+        self._lagrangian_start=lagrangian_start
+        self._lagrangian=lagrangian_start
+        self._constraint_threshold=constraint_threshold
+        self._lagrangian_lr=lagrangian_lr
+        self._baseline_const = baseline_const
         self._discount = discount
         self._gae_lambda = gae_lambda
         self._center_adv = center_adv
@@ -137,6 +146,7 @@ class NPO(RLAlgorithm):
         optimizer_args["name"] = "policy"
         optimizer_args_bl["model"] = self._baseline
         optimizer_args_bl["name"] = "value"
+        optimizer_args_bl["load_state"] = self._baseline.load_weights_from_disc
         self._check_entropy_configuration(entropy_method, center_adv,
                                           stop_entropy_gradient,
                                           use_neg_logli_entropy,
@@ -149,6 +159,16 @@ class NPO(RLAlgorithm):
         self._optimizer.update_opt(self._policy_loss)
         self._bl_optimizer = make_optimizer(optimizer, **optimizer_args_bl)
         self._bl_optimizer.update_opt(self._baseline.compute_loss)
+        if baseline_const:
+            optimizer_args_bl_const = copy.deepcopy(optimizer_args_bl)
+            optimizer_args_bl_const["model"] = self._baseline_const
+            optimizer_args_bl_const["name"] = "value_constraint"
+            optimizer_args_bl_const[
+                "load_state"] = self._baseline_const.load_weights_from_disc
+            self._bl_optimizer_const = make_optimizer(
+                optimizer, **optimizer_args_bl_const
+            )
+            self._bl_optimizer_const.update_opt(self._baseline_const.compute_loss)
         self._lr_clip_range = float(lr_clip_range)
         self._max_kl_step = float(max_kl_step)
         self._policy_ent_coeff = float(policy_ent_coeff)
@@ -346,6 +366,8 @@ class NPO(RLAlgorithm):
         rewards,
         baselines,
         valids,
+        penalties=None,
+        baselines_const=None,
     ):
         """Build policy loss and other output tensors.
 
@@ -374,6 +396,15 @@ class NPO(RLAlgorithm):
                                  )
 
         adv = torch.reshape(adv, (-1, self.max_episode_length))
+
+        if self._lagrangian:
+            adv_const = compute_advantages(self._discount,
+                                 self._gae_lambda,
+                                 self.max_episode_length,
+                                 baselines_const,
+                                 penalties,
+                                 )
+            adv -=  self._lagrangian * adv_const
         # Optionally normalize advantages
         eps = 1e-8
 
@@ -520,6 +551,76 @@ class NPO(RLAlgorithm):
             )
         tabular.record('{}/LossAfter'.format("Baseline"), loss_after)
         return returns_tensor
+
+    def _fit_baseline_const(self, episodes):
+        """Update baselines from samples.
+
+        Args:
+            episodes (EpisodeBatch): Batch of episodes.
+
+        Returns:
+            np.ndarray: Augment returns.
+
+        """
+        penalties = pad_batch_array(
+            episodes.env_infos["constraint"].astype(float),
+            episodes.lengths,
+            self.max_episode_length
+        )
+
+        penalties_tensor = np.stack([
+            discount_cumsum(violations, self._discount)
+            for violations in penalties])
+
+        paths = []
+        valids = episodes.valids
+        observations = episodes.padded_observations
+
+        # Compute returns
+        for pen, val, ob in zip(penalties_tensor, valids, observations):
+            returns = pen[val.astype(bool)]
+            obs = ob[val.astype(bool)]
+            paths.append(dict(observations=obs, returns=returns))
+
+        # Fit baseline
+        zero_optim_grads(self._bl_optimizer_const.optimizer)
+        logger.log('Fitting constraint baseline...')
+        xs = np.concatenate([p['observations'] for p in paths])
+        if not isinstance(xs, np.ndarray) or len(xs.shape) > 2:
+            xs = self._env_spec.observation_space.flatten_n(xs)
+        ys = np.concatenate([p['returns'] for p in paths])
+        ys = ys.reshape((-1, 1))
+        if self._baseline_const.normalize_inputs:
+            self._baseline_const.x_mean = torch.tensor(
+                np.mean(xs, axis=0, keepdims=True), dtype=torch.float32
+            )
+            self._baseline_const.x_std = torch.tensor(
+                np.std(xs, axis=0, keepdims=True) + 1e-8, dtype=torch.float32
+            )
+        if self._baseline_const.normalize_outputs:
+            # recompute normalizing constants for outputs
+            self._baseline_const.y_mean = torch.tensor(
+                np.mean(ys, axis=0, keepdims=True), dtype=torch.float32
+            )
+            self._baseline_const.y_std = torch.tensor(
+                np.std(ys, axis=0, keepdims=True) + 1e-8, dtype=torch.float32
+            )
+        x_tensor =  torch.tensor(
+                xs, dtype=torch.float32
+            )
+        y_tensor = torch.tensor(ys, dtype=torch.float32)
+        with torch.no_grad():
+            loss_before = self._baseline_const.compute_loss(
+            x_tensor, y_tensor
+        )
+        tabular.record('{}/LossBefore'.format("BaselineConstraint"), loss_before)
+        self._bl_optimizer_const.optimize(x_tensor, y_tensor)
+        with torch.no_grad():
+            loss_after = self._baseline_const.compute_loss(
+                x_tensor, y_tensor
+            )
+        tabular.record('{}/LossAfter'.format("BaselineConstraint"), loss_after)
+        return penalties_tensor, penalties
 
     def _policy_opt_input_values(self, episodes, baselines):
         """Map episode samples to the policy optimizer inputs.

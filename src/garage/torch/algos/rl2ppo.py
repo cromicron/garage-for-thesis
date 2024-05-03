@@ -66,6 +66,9 @@ class RL2PPO(RL2):
                  baseline,
                  sampler,
                  episodes_per_trial,
+                 lagrangian_start=None,
+                 constraint_threshold=0,
+                 baseline_const=None,
                  optimizer_args=None,
                  scope=None,
                  discount=0.99,
@@ -83,7 +86,9 @@ class RL2PPO(RL2):
                  meta_evaluator=None,
                  n_epochs_per_eval=10,
                  name='PPO',
+                 save_weights=True,
                  w_and_b=False,
+                 render_every_i=999999,
                  ):
         if optimizer_args is None:
             optimizer_args = dict()
@@ -92,6 +97,9 @@ class RL2PPO(RL2):
                          env_spec=env_spec,
                          policy=policy,
                          baseline=baseline,
+                         constraint_threshold=constraint_threshold,
+                         baseline_const=baseline_const,
+                         lagrangian_start=lagrangian_start,
                          sampler=sampler,
                          episodes_per_trial=episodes_per_trial,
                          scope=scope,
@@ -113,5 +121,7 @@ class RL2PPO(RL2):
                          meta_evaluator=meta_evaluator,
                          n_epochs_per_eval=n_epochs_per_eval,
                          name=name,
+                         save_weights=save_weights,
                          w_and_b=w_and_b,
+                         render_every_i=render_every_i,
                          )

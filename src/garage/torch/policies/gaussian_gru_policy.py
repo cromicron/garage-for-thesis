@@ -107,7 +107,8 @@ class GaussianGRUPolicy(Policy):
         layer_normalization=False,
         output_nonlinearity=None,
         state_include_action=True,
-        load_weights=False
+        load_weights=False,
+        constraints=0,
     ):
         super().__init__(env_spec=env_spec, name=name)
         self._env_spec = env_spec

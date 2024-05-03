@@ -268,6 +268,7 @@ def log_performance(itr, batch, discount, prefix='Evaluation', w_b=False):
     episode_mean_in_place_reward = []
     episode_max_in_place_reward = []
     episode_min_in_place_reward = []
+    constraints = []
     for eps in batch.split():
         rewards.append(eps.rewards)
         raw_rewards.append(sum(eps.rewards_raw))
@@ -295,7 +296,9 @@ def log_performance(itr, batch, discount, prefix='Evaluation', w_b=False):
                 max(eps.env_infos['in_place_reward']))
             episode_min_in_place_reward.append(
                 min(eps.env_infos['in_place_reward']))
-
+        if 'constraint' in eps.env_infos:
+            constraints.append(
+                np.mean(eps.env_infos['constraint']).astype(float))
     average_discounted_return = np.mean([rtn[0] for rtn in returns])
 
     with tabular.prefix(prefix + '/'):
@@ -330,11 +333,18 @@ def log_performance(itr, batch, discount, prefix='Evaluation', w_b=False):
                            np.mean(episode_max_in_place_reward))
             tabular.record('EpisodeMeanMinInPlaceReward',
                            np.mean(episode_min_in_place_reward))
+        if constraints:
+            tabular.record('Constraint', np.mean(constraints))
     if w_b:
-        wandb.log({
+        logs = {
             f"{tabular._prefix_str}{prefix}/AverageReturn": np.mean(undiscounted_returns),
             f"{tabular._prefix_str}{prefix}/AverageReturnRaw": np.mean(
                 raw_rewards),
             f"{tabular._prefix_str}{prefix}/SuccessRate": np.mean(success)
-        }, step=itr)
+        }
+        if constraints:
+            logs[
+                f"{tabular._prefix_str}{prefix}/AverageConstraintViolation"
+            ] = np.mean(constraints)
+        wandb.log(logs, step=itr)
     return undiscounted_returns
