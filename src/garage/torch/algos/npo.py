@@ -405,6 +405,7 @@ class NPO(RLAlgorithm):
                                  penalties,
                                  )
             adv -=  self._lagrangian * adv_const
+            adv /= (1 + self._lagrangian)
         # Optionally normalize advantages
         eps = 1e-8
 
