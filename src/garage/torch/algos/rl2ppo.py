@@ -88,7 +88,7 @@ class RL2PPO(RL2):
                  name='PPO',
                  save_weights=True,
                  w_and_b=False,
-                 render_every_i=999999,
+                 render_every_i=None,
                  run_in_episodes=0,
                  ):
         if optimizer_args is None:
