@@ -24,7 +24,7 @@ import wandb
 @click.command()
 @click.option('--seed', default=1)
 @click.option('--entropy_coefficient', type=float, default=5e-6)
-@wrap_experiment(snapshot_mode='gap_and_last', name_parameters='passed')
+@wrap_experiment(snapshot_mode='none', name_parameters='passed')
 def rl2_ppo_metaworld_ml10(ctxt,
                            seed,
                            entropy_coefficient=5e-6,
