@@ -24,7 +24,7 @@ import wandb
 @click.command()
 @click.option('--seed', default=1)
 @click.option('--entropy_coefficient', type=float, default=5e-6)
-@wrap_experiment(snapshot_mode='none', name_parameters='passed')
+@wrap_experiment(snapshot_mode='gap_and_last', name_parameters='passed')
 def rl2_ppo_metaworld_ml10(ctxt,
                            seed,
                            entropy_coefficient=5e-6,
@@ -45,12 +45,12 @@ def rl2_ppo_metaworld_ml10(ctxt,
         n_epochs (int): Total number of epochs for training.
         episode_per_task (int): Number of training episode per task.
     """
-    start_epoch = 581
+    start_epoch = 0
     n_epochs_per_eval = 50
-    run_in_episodes = 2
+    run_in_episodes = 0
     set_seed(seed)
     w_and_b = True
-    load_state = True
+    load_state = False
     ml10 = metaworld.ML10()
     tasks = MetaWorldTaskSampler(
         ml10, 'train',
