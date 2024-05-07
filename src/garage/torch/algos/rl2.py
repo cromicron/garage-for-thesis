@@ -338,7 +338,7 @@ class RL2(MetaRLAlgorithm, abc.ABC):
         n_epochs_per_eval,
         save_weights=True,
         w_and_b=False,
-        render_every_i=99999999,
+        render_every_i=None,
         run_in_episodes=0,
         **inner_algo_args
     ):
@@ -385,7 +385,7 @@ class RL2(MetaRLAlgorithm, abc.ABC):
 
 
         for _ in trainer.step_epochs():
-            if trainer.step_itr % self._render_every_i == 0:
+            if self._render_every_i and trainer.step_itr % self._render_every_i == 0:
                 samples = self._meta_evaluator._test_task_sampler.sample(2)
                 worker = RL2Worker(
                     seed=1,
