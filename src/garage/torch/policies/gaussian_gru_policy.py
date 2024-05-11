@@ -174,6 +174,7 @@ class GaussianGRUPolicy(Policy):
         do_resets_torch = torch.from_numpy(do_resets.astype(bool)).to(device)
 
         self._prev_actions[do_resets] = 0.
+        self._prev_hiddens = self._prev_hiddens.to(device)
         self._prev_hiddens[:, do_resets_torch] = self._init_hidden.to(device)
 
     def forward(self, inputs):

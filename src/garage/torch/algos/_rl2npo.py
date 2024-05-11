@@ -155,7 +155,9 @@ class RL2NPO(NPO):
         """
         obs = [
             self._baseline_const.forward(torch.tensor(
-                obs, dtype=torch.float32, device=device)).squeeze()
+                obs,
+                dtype=torch.float32,
+                device=device)).squeeze()
             for obs in episodes.observations_list
         ]
         return pad_batch_array(np.concatenate(obs), episodes.lengths,
