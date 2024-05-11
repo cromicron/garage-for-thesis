@@ -8,14 +8,14 @@ from dowel import logger, tabular
 import numpy as np
 import tensorflow as tf
 import torch
+device = "cuda" if torch.cuda.is_available() else "cpu"
 from garage import log_performance, log_multitask_performance, make_optimizer
 from garage.np import explained_variance_1d, pad_batch_array
 from garage.np.algos import RLAlgorithm
-from garage.torch._functions import zero_optim_grads, compute_advantages
+from garage.torch._functions import (
+    zero_optim_grads, compute_advantages, flatten_inputs)
 from garage.np. _functions import discount_cumsum
-from garage.tf import (center_advs, compile_function,
-                       discounted_returns, flatten_inputs, graph_inputs,
-                       positive_advs)
+from garage.tf import center_advs, positive_advs
 from garage.torch.optimizers import FirstOrderOptimizer
 
 # yapf: enable
@@ -154,7 +154,8 @@ class NPO(RLAlgorithm):
 
         if pg_loss not in ['vanilla', 'surrogate', 'surrogate_clip']:
             raise ValueError('Invalid pg_loss')
-
+        # move model to gpu if possible before creating optimizer
+        self.policy.to(device)
         self._optimizer = make_optimizer(optimizer, **optimizer_args)
         self._optimizer.update_opt(self._policy_loss)
         self._bl_optimizer = make_optimizer(optimizer, **optimizer_args_bl)
@@ -184,6 +185,8 @@ class NPO(RLAlgorithm):
         self._episode_reward_mean = collections.deque(maxlen=100)
 
         self._sampler = sampler
+        # send policy to cpu for collecting episodes
+        self.policy.to("cpu")
 
     def train(self, trainer):
         """Obtain samplers and start actual training for each epoch.
@@ -414,7 +417,6 @@ class NPO(RLAlgorithm):
 
         if self._positive_adv:
             adv = positive_advs(adv, eps)
-
         self._old_policy.reset(
             do_resets=np.full(shape=batch_size, fill_value=True))
         with torch.no_grad():
@@ -523,23 +525,31 @@ class NPO(RLAlgorithm):
         ys = ys.reshape((-1, 1))
         if self._baseline.normalize_inputs:
             self._baseline.x_mean = torch.tensor(
-                np.mean(xs, axis=0, keepdims=True), dtype=torch.float32
+                np.mean(xs, axis=0, keepdims=True),
+                dtype=torch.float32,
+                device=device
             )
             self._baseline.x_std = torch.tensor(
-                np.std(xs, axis=0, keepdims=True) + 1e-8, dtype=torch.float32
+                np.std(xs, axis=0, keepdims=True) + 1e-8,
+                dtype=torch.float32,
+                device=device
             )
         if self._baseline.normalize_outputs:
             # recompute normalizing constants for outputs
             self._baseline.y_mean = torch.tensor(
-                np.mean(ys, axis=0, keepdims=True), dtype=torch.float32
+                np.mean(ys, axis=0, keepdims=True),
+                dtype=torch.float32,
+                device=device
             )
             self._baseline.y_std = torch.tensor(
-                np.std(ys, axis=0, keepdims=True) + 1e-8, dtype=torch.float32
+                np.std(ys, axis=0, keepdims=True) + 1e-8,
+                dtype=torch.float32,
+                device=device
             )
         x_tensor =  torch.tensor(
-                xs, dtype=torch.float32
+                xs, dtype=torch.float32, device=device
             )
-        y_tensor = torch.tensor(ys, dtype=torch.float32)
+        y_tensor = torch.tensor(ys, dtype=torch.float32, device=device)
         with torch.no_grad():
             loss_before = self._baseline.compute_loss(
             x_tensor, y_tensor

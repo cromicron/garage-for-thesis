@@ -19,7 +19,7 @@ from garage.torch.policies import GaussianGRUPolicy
 from garage.trainer import Trainer
 import wandb
 # yapf: enable
-
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 @click.command()
 @click.option('--seed', default=1)
@@ -30,7 +30,7 @@ def rl2_ppo_metaworld_ml10(ctxt,
                            entropy_coefficient=5e-6,
                            meta_batch_size=10,
                            n_epochs=10000,
-                           episode_per_task=10,
+                           episode_per_task=2,
                            ):
     """Train RL2 PPO with ML10 environment.
 
@@ -49,8 +49,8 @@ def rl2_ppo_metaworld_ml10(ctxt,
     n_epochs_per_eval = 50
     run_in_episodes = 0
     set_seed(seed)
-    w_and_b = True
-    load_state = False
+    w_and_b = False
+    load_state = True
     ml10 = metaworld.ML10()
     tasks = MetaWorldTaskSampler(
         ml10, 'train',
@@ -85,13 +85,12 @@ def rl2_ppo_metaworld_ml10(ctxt,
         output_nonlinearity=torch.tanh,
         load_weights=load_state,
     )
-
-
     baseline = GaussianMLPValueFunction(
         env_spec=env.spec,
         hidden_sizes=(128, 128),
         load_weights=load_state
         )
+    baseline.module.to(device=device)
 
     envs = tasks.sample(meta_batch_size)
     sampler = RaySampler(
@@ -127,6 +126,7 @@ def rl2_ppo_metaworld_ml10(ctxt,
                   save_weights=False,
                   w_and_b=w_and_b,
                   run_in_episodes=run_in_episodes,
+                  render_every_i=None
                   )
 
     trainer.setup(algo, envs)

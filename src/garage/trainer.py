@@ -392,7 +392,7 @@ class Trainer:
 
         log_dir = self._snapshotter.snapshot_dir
         summary_file = os.path.join(log_dir, 'experiment.json')
-        #dump_json(summary_file, self)
+        dump_json(summary_file, self)
 
         average_return = self._algo.train(self)
         self._shutdown_worker()

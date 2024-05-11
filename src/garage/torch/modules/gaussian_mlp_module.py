@@ -5,7 +5,6 @@ import torch
 from torch import nn
 from torch.distributions import Normal
 from torch.distributions.independent import Independent
-
 from garage.torch.distributions import TanhNormal
 from garage.torch.modules.mlp_module import MLPModule
 from garage.torch.modules.multi_headed_mlp_module import MultiHeadedMLPModule
@@ -150,8 +149,10 @@ class GaussianMLPBaseModule(nn.Module):
         buffers = dict(self.named_buffers())
         if not isinstance(self._log_std, torch.nn.Parameter):
             self._log_std = buffers['log_std']
-        self._min_std_param = buffers['min_std_param']
-        self._max_std_param = buffers['max_std_param']
+        if "min_std_param" in buffers:
+            self._min_std_param = buffers['min_std_param']
+        if "max_std_param" in buffers:
+            self._max_std_param = buffers['max_std_param']
 
     @abc.abstractmethod
     def _get_mean_and_log_std(self, *inputs):

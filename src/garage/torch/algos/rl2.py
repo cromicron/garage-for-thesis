@@ -9,13 +9,13 @@ import pickle
 import akro
 from dowel import logger
 import numpy as np
-import time
+import torch
 from garage import (EnvSpec, EnvStep, EpisodeBatch, log_multitask_performance,
                     StepType, Wrapper)
 from garage.np.algos import MetaRLAlgorithm
 from garage.sampler import DefaultWorker
 from garage.torch.algos._rl2npo import RL2NPO
-
+device = "cuda" if torch.cuda.is_available() else "cpu"
 # yapf: enable
 
 
@@ -402,7 +402,7 @@ class RL2(MetaRLAlgorithm, abc.ABC):
                     worker.update_agent(adapted_policy)
                     worker.rollout()
 
-            if trainer.step_itr % self._n_epochs_per_eval == 0:
+            if trainer.step_itr % self._n_epochs_per_eval == 10:
                 if self._meta_evaluator is not None:
                     self._meta_evaluator.evaluate(
                         self, itr_multiplier=self._n_epochs_per_eval
@@ -437,9 +437,13 @@ class RL2(MetaRLAlgorithm, abc.ABC):
             numpy.float64: Average return.
 
         """
+        if device == "cuda":
+            self._policy.to(device)
         episodes, average_return = self._process_samples(itr, episodes)
         logger.log('Optimizing policy...')
         self._inner_algo.optimize_policy(episodes, save_weights=self._save_weights)
+        if device == "cuda":
+            self._policy.to("cpu")
         return average_return
 
     def get_exploration_policy(self):

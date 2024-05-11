@@ -1,10 +1,11 @@
 import copy
-
 import torch
 import torch.nn as nn
 import numpy as np
 import akro
 from garage.torch.policies.stochastic_policy import Policy
+
+
 class GaussianGRUModule(nn.Module):
     def __init__(
         self,
@@ -153,19 +154,27 @@ class GaussianGRUPolicy(Policy):
     def reset(self, do_resets=None):
         if do_resets is None:
             do_resets = np.array([True])
+
+        # Directly fetch the device from the model's existing parameters
+        device = next(self.parameters()).device
+
+        # Ensure all tensors are created on the correct device
         if self._prev_actions is None or len(do_resets) != len(
             self._prev_actions):
             self._prev_actions = np.zeros(
-                (len(do_resets), self._env_spec.action_space.flat_dim))
+                (len(do_resets), self._env_spec.action_space.flat_dim),
+            )
             self._prev_hiddens = torch.zeros(
-                (1, len(do_resets), self._hidden_dim), dtype=torch.float32)
+                (1, len(do_resets), self._hidden_dim),
+                dtype=torch.float32,
+                device=device
+            )
 
-        # Convert do_resets to a torch tensor for indexing torch tensors
-        do_resets_torch = torch.from_numpy(do_resets.astype(bool))
+        # Convert do_resets to a torch tensor and ensure it is on the same device
+        do_resets_torch = torch.from_numpy(do_resets.astype(bool)).to(device)
 
         self._prev_actions[do_resets] = 0.
-        self._prev_hiddens[:, do_resets_torch] = self._init_hidden
-
+        self._prev_hiddens[:, do_resets_torch] = self._init_hidden.to(device)
 
     def forward(self, inputs):
         return self._module.forward(inputs,  self._prev_hiddens)

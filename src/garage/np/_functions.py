@@ -2,6 +2,7 @@
 import warnings
 
 import numpy as np
+import torch
 import scipy.signal
 
 
@@ -375,35 +376,40 @@ def slice_nested_dict(dict_or_array, start, stop):
         return dict_or_array[start:stop]
 
 
-def pad_batch_array(array, lengths, max_length=None):
-    r"""Convert a packed into a padded array with one more dimension.
+def pad_batch_array(data, lengths, max_length=None):
+    r"""Convert a packed array or tensor into a padded array or tensor with one more dimension.
 
     Args:
-        array (np.ndarray): Array of length :math:`(N \bullet [T], X^*)`
+        data (np.ndarray or torch.Tensor): Array or tensor of length :math:`(N \bullet [T], X^*)`
         lengths (list[int]): List of length :math:`N` containing the length
-            of each episode in the batch array.
+            of each episode in the batch data.
         max_length (int): Defaults to max(lengths) if not provided.
 
     Returns:
-        np.ndarray: Of shape :math:`(N, max_length, X^*)`
-
+        np.ndarray or torch.Tensor: Of shape :math:`(N, max_length, X^*)`
     """
-    assert array.shape[0] == sum(lengths)
+    assert data.shape[0] == sum(lengths)
     if max_length is None:
         max_length = max(lengths)
     elif max_length < max(lengths):
-        # We have at least one episode longther than max_length (whtich is
-        # usually max_episode_length).
-        # This is probably not a good idea to allow, but RL2 already uses it.
-        warnings.warn('Creating a padded array with longer length than '
-                      'requested')
+        # We have at least one episode longer than max_length.
+        warnings.warn('Creating a padded array with longer length than requested')
         max_length = max(lengths)
 
-    padded = np.zeros((len(lengths), max_length) + array.shape[1:],
-                      dtype=array.dtype)
-    start = 0
-    for i, length in enumerate(lengths):
-        stop = start + length
-        padded[i][0:length] = array[start:stop]
-        start = stop
+    # Check if the input data is a tensor
+    if isinstance(data, torch.Tensor):
+        padded = torch.zeros((len(lengths), max_length) + data.shape[1:], dtype=data.dtype, device=data.device)
+        start = 0
+        for i, length in enumerate(lengths):
+            stop = start + length
+            padded[i, :length] = data[start:stop]
+            start = stop
+    else:  # Assume data is a numpy array
+        padded = np.zeros((len(lengths), max_length) + data.shape[1:], dtype=data.dtype)
+        start = 0
+        for i, length in enumerate(lengths):
+            stop = start + length
+            padded[i, :length] = data[start:stop]
+            start = stop
+
     return padded

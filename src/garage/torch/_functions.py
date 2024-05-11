@@ -11,8 +11,9 @@ This collection of functions can be used to manage the following:
 """
 import copy
 import math
+import numpy as np
 import warnings
-
+import collections
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -95,7 +96,7 @@ def compute_advantages(discount, gae_lambda, max_episode_length, baselines,
     """
     adv_filter = torch.full((1, 1, 1, max_episode_length - 1),
                             discount * gae_lambda,
-                            dtype=torch.float)
+                            dtype=torch.float, device=rewards.device)
     adv_filter = torch.cumprod(F.pad(adv_filter, (1, 0), value=1), dim=-1)
 
     deltas = (rewards + discount * F.pad(baselines, (0, 1))[:, 1:] - baselines)
@@ -382,7 +383,26 @@ def state_dict_to(state_dict, device):
             state_dict_to(param, device)
     return state_dict
 
+def flatten_inputs(deep):
+    """Flattens an :class:`collections.abc.Iterable` recursively.
 
+    Args:
+        deep (Iterable): An :class:`~collections.abc.Iterable` to flatten.
+
+    Returns:
+        list: The flattened result.
+    """
+
+    def flatten(deep):
+        # pylint: disable=missing-yield-doc,missing-yield-type-doc
+        for d in deep:
+            if isinstance(d, collections.abc.Iterable) and not isinstance(
+                    d, (str, bytes, torch.Tensor, np.ndarray)):
+                yield from flatten(d)
+            else:
+                yield d
+
+    return list(flatten(deep))
 # pylint: disable=W0223
 class NonLinearity(nn.Module):
     """Wrapper class for non linear function or module.

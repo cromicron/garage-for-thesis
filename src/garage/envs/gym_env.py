@@ -228,6 +228,8 @@ class GymEnv(Environment):
 
         if self._visualize:
             self._env.render()
+        if self._env.render_mode is not None:
+            self._env.render()
 
         reward = float(reward) if not isinstance(reward, float) else reward
         self._step_cnt += 1

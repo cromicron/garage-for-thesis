@@ -5,6 +5,7 @@ import torch
 from garage.np import explained_variance_1d, pad_batch_array
 from garage.torch.algos import NPO
 
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 class RL2NPO(NPO):
     """Natural Policy Gradient Optimization.
@@ -81,9 +82,10 @@ class RL2NPO(NPO):
             with torch.no_grad():
                 baselines_const = self._get_baseline_prediction_const(episodes)
             policy_opt_input_values.extend([penalties, baselines_const])
-        inputs = [torch.tensor(i, dtype=torch.float32) for i in policy_opt_input_values]
+        inputs = [torch.tensor(i, dtype=torch.float32, device=device) for i in policy_opt_input_values]
         # Train policy network
         logger.log('Computing loss before')
+        self._old_policy.to(device)
         with torch.no_grad():
             loss_before, policy_kl_before = self._policy_loss(*inputs)
         logger.log('Optimizing')
@@ -131,10 +133,13 @@ class RL2NPO(NPO):
 
         """
         obs = [
-            self._baseline.forward(torch.tensor(obs, dtype=torch.float32)).squeeze()
+            self._baseline.forward(torch.tensor(
+                obs,
+                dtype=torch.float32,
+                device=device)).squeeze()
             for obs in episodes.observations_list
         ]
-        return pad_batch_array(np.concatenate(obs), episodes.lengths,
+        return pad_batch_array(torch.cat(obs, dim=0), episodes.lengths,
                                self.max_episode_length)
 
     def _get_baseline_prediction_const(self, episodes):
@@ -149,7 +154,8 @@ class RL2NPO(NPO):
 
         """
         obs = [
-            self._baseline_const.forward(torch.tensor(obs, dtype=torch.float32)).squeeze()
+            self._baseline_const.forward(torch.tensor(
+                obs, dtype=torch.float32, device=device)).squeeze()
             for obs in episodes.observations_list
         ]
         return pad_batch_array(np.concatenate(obs), episodes.lengths,
