@@ -4,6 +4,7 @@ import numpy as np
 import torch
 from garage.np import explained_variance_1d, pad_batch_array
 from garage.torch.algos import NPO
+import wandb
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -112,6 +113,8 @@ class RL2NPO(NPO):
             )
             logger.log(f'Lagrangian Loss {lagrangian_loss}')
             logger.log(f'New Lagrangian {self._lagrangian}')
+            if wandb.run:
+                wandb.log({"lambda": self._lagrangian}, step=wandb.run.step)
 
         if save_weights:
             self.policy.save_weights()
@@ -160,5 +163,5 @@ class RL2NPO(NPO):
                 device=device)).squeeze()
             for obs in episodes.observations_list
         ]
-        return pad_batch_array(np.concatenate(obs), episodes.lengths,
+        return pad_batch_array(torch.cat(obs, dim=0), episodes.lengths,
                                self.max_episode_length)

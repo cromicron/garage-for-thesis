@@ -603,23 +603,33 @@ class NPO(RLAlgorithm):
         ys = ys.reshape((-1, 1))
         if self._baseline_const.normalize_inputs:
             self._baseline_const.x_mean = torch.tensor(
-                np.mean(xs, axis=0, keepdims=True), dtype=torch.float32
+                np.mean(xs, axis=0, keepdims=True),
+                dtype=torch.float32,
+                device=device,
             )
             self._baseline_const.x_std = torch.tensor(
-                np.std(xs, axis=0, keepdims=True) + 1e-8, dtype=torch.float32
+                np.std(xs, axis=0, keepdims=True) + 1e-8,
+                dtype=torch.float32,
+                device=device,
             )
         if self._baseline_const.normalize_outputs:
             # recompute normalizing constants for outputs
             self._baseline_const.y_mean = torch.tensor(
-                np.mean(ys, axis=0, keepdims=True), dtype=torch.float32
+                np.mean(ys, axis=0, keepdims=True),
+                dtype=torch.float32,
+                device=device,
             )
             self._baseline_const.y_std = torch.tensor(
-                np.std(ys, axis=0, keepdims=True) + 1e-8, dtype=torch.float32
+                np.std(ys, axis=0, keepdims=True) + 1e-8,
+                dtype=torch.float32,
+                device=device,
             )
         x_tensor =  torch.tensor(
-                xs, dtype=torch.float32
+            xs,
+            dtype=torch.float32,
+            device=device
             )
-        y_tensor = torch.tensor(ys, dtype=torch.float32)
+        y_tensor = torch.tensor(ys, dtype=torch.float32, device=device)
         with torch.no_grad():
             loss_before = self._baseline_const.compute_loss(
             x_tensor, y_tensor
