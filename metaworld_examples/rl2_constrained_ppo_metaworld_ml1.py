@@ -20,11 +20,12 @@ from garage.trainer import Trainer
 import wandb
 # yapf: enable
 
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 @click.command()
-@click.option('--env-name', type=str, default='basketball-v2')
+@click.option('--env-name', type=str, default='pick-place-v2')
 @click.option('--seed', default=1)
-@click.option('--meta_batch_size', default=10)
+@click.option('--meta_batch_size', default=25)
 @click.option('--n_epochs', default=4000)
 @click.option('--episode_per_task', default=10)
 @wrap_experiment(snapshot_mode='none', name_parameters='passed')
@@ -32,7 +33,7 @@ def rl2_ppo_metaworld_ml1(ctxt,
                           env_name,
                           seed,
                           entropy_coefficient=5e-6,
-                          meta_batch_size=10,
+                          meta_batch_size=25,
                           n_epochs=4000,
                           episode_per_task=10):
     """Train RL2 PPO with ml1 environment.
@@ -55,10 +56,10 @@ def rl2_ppo_metaworld_ml1(ctxt,
     set_seed(seed)
     constraints = True
     start_epoch = 0
-    n_epochs_per_eval = 10
+    n_epochs_per_eval = 50
     set_seed(seed)
-    w_and_b = False
-    load_state = True
+    w_and_b = True
+    load_state = False
     ml1 = metaworld.ML1(env_name)
     tasks = MetaWorldTaskSampler(
         ml1, 'train',
@@ -72,13 +73,13 @@ def rl2_ppo_metaworld_ml1(ctxt,
     meta_evaluator = MetaEvaluator(test_task_sampler=test_task_sampler,
                                    n_exploration_eps=episode_per_task,
                                    n_test_tasks=num_test_envs * 2,
-                                   n_test_episodes=2,
+                                   n_test_episodes=10,
                                    start_eval_itr=math.ceil(start_epoch/n_epochs_per_eval),
                                    w_and_b=w_and_b,
-                                   render_examples=True,
+                                   render_examples=False,
                                    )
 
-    env_updates = tasks.sample(10)
+    env_updates = tasks.sample(50)
     env = env_updates[0]()
 
     env_spec = env.spec
@@ -101,12 +102,14 @@ def rl2_ppo_metaworld_ml1(ctxt,
         hidden_sizes=(128, 128),
         load_weights=load_state
         )
+    baseline.module.to(device=device)
     if constraints:
         baseline_const = GaussianMLPValueFunction(
             env_spec=env.spec,
             hidden_sizes=(128, 128),
             load_weights=False
             )
+        baseline_const.module.to(device=device)
     else:
         baseline_const = None
 
@@ -145,12 +148,12 @@ def rl2_ppo_metaworld_ml1(ctxt,
                   use_neg_logli_entropy=True,
                   n_epochs_per_eval=n_epochs_per_eval,
                   w_and_b=w_and_b,
-                  render_every_i=10
+                  render_every_i=None
                   )
 
     trainer.setup(algo, envs)
     if w_and_b:
-        wandb.init(project="rl2-garage-metaworld_10",
+        wandb.init(project="rl2-pick-place-constraint",
                    config={
                        # Your configuration parameters here
                        "inner_rl": 5e-4,
@@ -161,7 +164,7 @@ def rl2_ppo_metaworld_ml1(ctxt,
                        "policy_ent_coeff": 5e-5,
                        "episode_per_task": episode_per_task
                        # Additional parameters can be added here
-                   }, resume="must", id="jv70fxjb")
+                   })
     trainer.train(n_epochs=n_epochs-start_epoch,
                   batch_size=episode_per_task *
                   env_spec.max_episode_length * meta_batch_size,
