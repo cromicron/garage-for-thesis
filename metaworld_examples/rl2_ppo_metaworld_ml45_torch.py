@@ -29,7 +29,7 @@ def rl2_ppo_metaworld_ml45(ctxt,
                            seed,
                            entropy_coefficient=5e-6,
                            meta_batch_size=25,
-                           n_epochs=4000,
+                           n_epochs=6000,
                            episode_per_task=10,
                            ):
     """Train RL2 PPO with ML10 environment.
