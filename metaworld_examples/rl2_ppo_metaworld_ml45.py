@@ -5,7 +5,7 @@
 import click
 import metaworld
 import tensorflow as tf
-
+import wandb
 from garage import wrap_experiment
 from garage.envs import MetaWorldSetTaskEnv, normalize
 from garage.experiment import (MetaEvaluator, MetaWorldTaskSampler,
@@ -48,7 +48,10 @@ def rl2_ppo_metaworld_ml45(ctxt,
         episode_per_task (int): Number of training episode per task.
 
     """
+    start_epoch = 0
+    n_epochs_per_eval = 50
     set_seed(seed)
+    w_and_b = True
     with TFTrainer(snapshot_config=ctxt) as trainer:
         ml45 = metaworld.ML45()
         tasks = MetaWorldTaskSampler(
@@ -124,7 +127,19 @@ def rl2_ppo_metaworld_ml45(ctxt,
         )
 
         trainer.setup(algo, envs)
-
+        if w_and_b:
+            wandb.init(project="rl2-garage-metaworld_45-tf",
+                       config={
+                           # Your configuration parameters here
+                           "inner_rl": 5e-4,
+                           "meta_batch_size": meta_batch_size,
+                           "discount": 0.99,
+                           "gae_lambda": 1,
+                           "num_grad_updates": 1,
+                           "policy_ent_coeff": 5e-5,
+                           "episode_per_task": episode_per_task
+                           # Additional parameters can be added here
+                       })
         trainer.train(n_epochs=n_epochs,
                       batch_size=episode_per_task *
                       env_spec.max_episode_length * meta_batch_size)
