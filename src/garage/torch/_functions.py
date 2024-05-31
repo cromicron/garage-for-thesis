@@ -94,9 +94,10 @@ def compute_advantages(discount, gae_lambda, max_episode_length, baselines,
             in that episode should be set to 0.
 
     """
+    dtype = baselines.dtype
     adv_filter = torch.full((1, 1, 1, max_episode_length - 1),
                             discount * gae_lambda,
-                            dtype=torch.float, device=rewards.device)
+                            dtype=dtype, device=rewards.device)
     adv_filter = torch.cumprod(F.pad(adv_filter, (1, 0), value=1), dim=-1)
 
     deltas = (rewards + discount * F.pad(baselines, (0, 1))[:, 1:] - baselines)

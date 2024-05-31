@@ -134,7 +134,7 @@ class GaussianGRUPolicy(Policy):
 
         self._prev_actions = None
         self._prev_hiddens = None
-        self._init_hidden = torch.zeros(1, hidden_dim)
+        self._init_hidden = torch.zeros(1, hidden_dim, dtype=torch.float64)
         self._module = GaussianGRUModule(
             input_dim=self._input_dim,
             output_dim=self._action_dim,
@@ -151,7 +151,7 @@ class GaussianGRUPolicy(Policy):
         if load_weights:
             self.load_weights()
 
-    def reset(self, do_resets=None):
+    def reset(self, do_resets=None, dtype=torch.float32):
         if do_resets is None:
             do_resets = np.array([True])
 
@@ -166,16 +166,18 @@ class GaussianGRUPolicy(Policy):
             )
             self._prev_hiddens = torch.zeros(
                 (1, len(do_resets), self._hidden_dim),
-                dtype=torch.float32,
-                device=device
+                device=device,
+                dtype=dtype,
             )
 
         # Convert do_resets to a torch tensor and ensure it is on the same device
         do_resets_torch = torch.from_numpy(do_resets.astype(bool)).to(device)
 
         self._prev_actions[do_resets] = 0.
-        self._prev_hiddens = self._prev_hiddens.to(device)
-        self._prev_hiddens[:, do_resets_torch] = self._init_hidden.to(device)
+        self._prev_hiddens = self._prev_hiddens.to(
+            device=device, dtype=dtype)
+        self._prev_hiddens[:, do_resets_torch] = self._init_hidden.to(
+            device=device, dtype=dtype)
 
     def forward(self, inputs):
         return self._module.forward(inputs,  self._prev_hiddens)

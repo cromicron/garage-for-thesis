@@ -90,7 +90,7 @@ def rl2_ppo_metaworld_ml45(ctxt,
         hidden_sizes=(256, 256),
         load_weights=load_state
         )
-    baseline.module.to(device=device)
+    baseline.module.to(device=device, dtype=torch.float64)
 
     envs = tasks.sample(meta_batch_size)
     sampler = RaySampler(

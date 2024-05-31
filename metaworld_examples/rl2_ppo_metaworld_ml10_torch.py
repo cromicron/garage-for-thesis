@@ -30,7 +30,7 @@ def rl2_ppo_metaworld_ml10(ctxt,
                            entropy_coefficient=5e-6,
                            meta_batch_size=10,
                            n_epochs=10000,
-                           episode_per_task=10,
+                           episode_per_task=2,
                            ):
     """Train RL2 PPO with ML10 environment.
 
@@ -49,7 +49,7 @@ def rl2_ppo_metaworld_ml10(ctxt,
     n_epochs_per_eval = 50
     run_in_episodes = 0
     set_seed(seed)
-    w_and_b = True
+    w_and_b = False
     load_state = False
     ml10 = metaworld.ML10()
     tasks = MetaWorldTaskSampler(
@@ -90,7 +90,7 @@ def rl2_ppo_metaworld_ml10(ctxt,
         hidden_sizes=(128, 128),
         load_weights=load_state
         )
-    baseline.module.to(device=device)
+    baseline.module.to(device=device, dtype=torch.float64)
 
     envs = tasks.sample(meta_batch_size)
     sampler = RaySampler(

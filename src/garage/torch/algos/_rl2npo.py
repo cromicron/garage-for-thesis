@@ -83,10 +83,10 @@ class RL2NPO(NPO):
             with torch.no_grad():
                 baselines_const = self._get_baseline_prediction_const(episodes)
             policy_opt_input_values.extend([penalties, baselines_const])
-        inputs = [torch.tensor(i, dtype=torch.float32, device=device) for i in policy_opt_input_values]
+        inputs = [torch.tensor(i, dtype=torch.float64, device=device) for i in policy_opt_input_values]
         # Train policy network
         logger.log('Computing loss before')
-        self._old_policy.to(device)
+        self._old_policy.to(device=device, dtype=torch.float64)
         with torch.no_grad():
             loss_before, policy_kl_before = self._policy_loss(*inputs)
         logger.log('Optimizing')
