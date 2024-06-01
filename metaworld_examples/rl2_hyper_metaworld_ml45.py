@@ -49,7 +49,7 @@ def rl2_hyper_metaworld_ml45(ctxt,
     n_epochs_per_eval = 50
     run_in_episodes = 0
     set_seed(seed)
-    w_and_b = True
+    w_and_b = False
     load_state = False
     ml45 = metaworld.ML45()
     tasks = MetaWorldTaskSampler(
@@ -69,7 +69,7 @@ def rl2_hyper_metaworld_ml45(ctxt,
                                    w_and_b=w_and_b
                                    )
 
-    env_updates = tasks.sample(10)
+    env_updates = tasks.sample(45)
     env = env_updates[0]()
 
     env_spec = env.spec
