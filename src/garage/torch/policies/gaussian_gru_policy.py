@@ -2,7 +2,6 @@ import copy
 import torch
 import torch.nn as nn
 import numpy as np
-import akro
 from garage.torch.policies.stochastic_policy import Policy
 
 
@@ -68,15 +67,15 @@ class GaussianGRUModule(nn.Module):
             output_mean = self.layer_norm(output_mean)
         if self.std_share_network:
             # means are first four elements and std four last elements
-            mean_std = self.fc_mean_std(output_mean)
+            mean_std = self.output_nonlinearity(self.fc_mean_std(output_mean))
             mean = mean_std[..., :self.output_dim]
             log_std = mean_std[..., self.output_dim: ]
         else:
-            mean = self.fc_mean(output_mean)
+            mean = self.output_nonlinearity(self.fc_mean(output_mean))
             output_std, self.hidden_std = self.gru_std(x, self.hidden_std)
             if self.layer_normalization:
                 output_std = self.layer_norm(output_std)
-            log_std = self.fc_std(output_std)
+            log_std = self.output_nonlinearity(self.fc_std(output_std))
 
         if self.log_min_std  and self.log_max_std:
             def _softclip(x, x_min, x_max, alpha=2):
