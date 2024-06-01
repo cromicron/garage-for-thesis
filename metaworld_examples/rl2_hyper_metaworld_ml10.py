@@ -49,7 +49,7 @@ def rl2_hyper_metaworld_ml10(ctxt,
     n_epochs_per_eval = 50
     run_in_episodes = 0
     set_seed(seed)
-    w_and_b = False
+    w_and_b = True
     load_state = False
     ml10 = metaworld.ML10()
     tasks = MetaWorldTaskSampler(
@@ -75,7 +75,7 @@ def rl2_hyper_metaworld_ml10(ctxt,
     env_spec = env.spec
     policy = GaussianHyperGRUPolicy(
         name='policy',
-        hidden_dim=128,
+        hidden_dim=256,
         policy_input_dim=39,
         policy_dim=128,
         env_spec=env_spec,
@@ -132,11 +132,13 @@ def rl2_hyper_metaworld_ml10(ctxt,
 
     trainer.setup(algo, envs)
     if w_and_b:
-        wandb.init(project="rl2-garage-metaworld_10",
+        wandb.init(project="rl2-hyper-metaworld_10",
                    config={
                        # Your configuration parameters here
                        "inner_rl": 5e-4,
                        "meta_batch_size": meta_batch_size,
+                       "gru_shape": 256,
+                       "mlp_shape": 128,
                        "discount": 0.99,
                        "gae_lambda": 1,
                        "num_grad_updates": 1,
