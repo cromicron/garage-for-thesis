@@ -51,7 +51,7 @@ def rl2_hyper_metaworld_ml45(ctxt,
     n_epochs_per_eval = 50
     run_in_episodes = 0
     set_seed(seed)
-    w_and_b = False
+    w_and_b = True
     load_state = False
     ml45 = metaworld.ML45()
     tasks = MetaWorldTaskSampler(
@@ -114,7 +114,7 @@ def rl2_hyper_metaworld_ml45(ctxt,
                   discount=0.99,
                   gae_lambda=0.95,
                   lr_clip_range=0.2,
-                  optimizer_args=dict(batch_size=32,
+                  optimizer_args=dict(batch_size=9,
                                       max_optimization_epochs=10,
                                       learning_rate=5e-4,
                                       load_state=load_state),
