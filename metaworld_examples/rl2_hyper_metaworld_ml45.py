@@ -49,7 +49,7 @@ def rl2_hyper_metaworld_ml45(ctxt,
     n_epochs_per_eval = 50
     run_in_episodes = 0
     set_seed(seed)
-    w_and_b = True
+    w_and_b = False
     load_state = False
     ml45 = metaworld.ML45()
     tasks = MetaWorldTaskSampler(
@@ -75,7 +75,7 @@ def rl2_hyper_metaworld_ml45(ctxt,
     env_spec = env.spec
     policy = GaussianHyperGRUPolicy(
         name='policy',
-        hidden_dim=128,
+        hidden_dim=64,
         policy_input_dim=39,
         policy_dim=64,
         env_spec=env_spec,
