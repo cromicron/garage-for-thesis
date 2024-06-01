@@ -45,6 +45,8 @@ def rl2_hyper_metaworld_ml45(ctxt,
         n_epochs (int): Total number of epochs for training.
         episode_per_task (int): Number of training episode per task.
     """
+    hidden_dim= 64
+    policy_dim= 128
     start_epoch = 0
     n_epochs_per_eval = 50
     run_in_episodes = 0
@@ -75,9 +77,9 @@ def rl2_hyper_metaworld_ml45(ctxt,
     env_spec = env.spec
     policy = GaussianHyperGRUPolicy(
         name='policy',
-        hidden_dim=64,
+        hidden_dim=hidden_dim,
         policy_input_dim=39,
-        policy_dim=64,
+        policy_dim=policy_dim,
         env_spec=env_spec,
         state_include_action=False,
         min_std=0.5,
@@ -137,8 +139,8 @@ def rl2_hyper_metaworld_ml45(ctxt,
                        # Your configuration parameters here
                        "inner_rl": 5e-4,
                        "meta_batch_size": meta_batch_size,
-                       "gru_shape": 256,
-                       "mlp_shape": 128,
+                       "gru_shape": hidden_dim,
+                       "mlp_shape": policy_dim,
                        "discount": 0.99,
                        "gae_lambda": 1,
                        "num_grad_updates": 1,
