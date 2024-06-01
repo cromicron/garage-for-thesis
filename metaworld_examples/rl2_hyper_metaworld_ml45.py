@@ -49,7 +49,7 @@ def rl2_hyper_metaworld_ml45(ctxt,
     n_epochs_per_eval = 50
     run_in_episodes = 0
     set_seed(seed)
-    w_and_b = False
+    w_and_b = True
     load_state = False
     ml45 = metaworld.ML45()
     tasks = MetaWorldTaskSampler(
