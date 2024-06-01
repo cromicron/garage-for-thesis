@@ -15,6 +15,8 @@ from garage.torch.policies.gaussian_lstm_policy import (
     GaussianLSTMPolicy)
 from garage.torch.policies.gaussian_gru_policy import (
     GaussianGRUPolicy)
+from garage.torch.policies.gaussian_gru_hypernet import (
+    GaussianHyperGRUPolicy)
 
 __all__ = [
     'CategoricalCNNPolicy',
@@ -24,6 +26,7 @@ __all__ = [
     'GaussianMLPPolicy',
     'GaussianLSTMPolicy',
     'GaussianGRUPolicy',
+    'GaussianHyperGRUPolicy',
     'Policy',
     'TanhGaussianMLPPolicy',
     'ContextConditionedPolicy',
