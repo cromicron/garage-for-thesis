@@ -51,13 +51,13 @@ def rl2_hyper_metaworld_ml45(ctxt,
     set_seed(seed)
     w_and_b = True
     load_state = False
-    ml10 = metaworld.ML10()
+    ml45 = metaworld.ML45()
     tasks = MetaWorldTaskSampler(
-        ml10, 'train',
+        ml45, 'train',
         lambda env, _: RL2Env(normalize(env, normalize_reward=True)))
     test_task_sampler = SetTaskSampler(
         MetaWorldSetTaskEnv,
-        env=MetaWorldSetTaskEnv(ml10, 'test'),
+        env=MetaWorldSetTaskEnv(ml45, 'test'),
         wrapper=lambda env, _: RL2Env(normalize(env, normalize_reward=True)
                                       ))
     num_test_envs = 5
@@ -132,7 +132,7 @@ def rl2_hyper_metaworld_ml45(ctxt,
 
     trainer.setup(algo, envs)
     if w_and_b:
-        wandb.init(project="rl2-hyper-metaworld_10",
+        wandb.init(project="rl2-hyper-metaworld_45",
                    config={
                        # Your configuration parameters here
                        "inner_rl": 5e-4,
