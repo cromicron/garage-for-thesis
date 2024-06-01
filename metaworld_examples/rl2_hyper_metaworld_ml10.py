@@ -75,9 +75,9 @@ def rl2_hyper_metaworld_ml10(ctxt,
     env_spec = env.spec
     policy = GaussianHyperGRUPolicy(
         name='policy',
-        hidden_dim=256,
+        hidden_dim=128,
         policy_input_dim=39,
-        policy_dim=128,
+        policy_dim=64,
         env_spec=env_spec,
         state_include_action=False,
         min_std=0.5,
