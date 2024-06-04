@@ -102,14 +102,14 @@ def rl2_ppo_metaworld_ml1(ctxt,
         hidden_sizes=(128, 128),
         load_weights=load_state
         )
-    baseline.module.to(device=device)
+    baseline.module.to(device=device, dtype=torch.float64)
     if constraints:
         baseline_const = GaussianMLPValueFunction(
             env_spec=env.spec,
             hidden_sizes=(128, 128),
             load_weights=False
             )
-        baseline_const.module.to(device=device)
+        baseline_const.module.to(device=device, dtype=torch.float64)
     else:
         baseline_const = None
 

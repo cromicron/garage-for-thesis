@@ -271,7 +271,8 @@ def log_performance(itr, batch, discount, prefix='Evaluation', w_b=False):
     constraints = []
     for eps in batch.split():
         rewards.append(eps.rewards)
-        raw_rewards.append(sum(eps.rewards_raw))
+        if eps.rewards_raw[0] is not None:
+            raw_rewards.append(sum(eps.rewards_raw))
         returns.append(discount_cumsum(eps.rewards, discount))
         undiscounted_returns.append(sum(eps.rewards))
         termination.append(
@@ -338,10 +339,11 @@ def log_performance(itr, batch, discount, prefix='Evaluation', w_b=False):
     if w_b:
         logs = {
             f"{tabular._prefix_str}{prefix}/AverageReturn": np.mean(undiscounted_returns),
-            f"{tabular._prefix_str}{prefix}/AverageReturnRaw": np.mean(
-                raw_rewards),
             f"{tabular._prefix_str}{prefix}/SuccessRate": np.mean(success)
         }
+        if len(raw_rewards) > 0:
+            logs[f"{tabular._prefix_str}{prefix}/AverageReturnRaw"] = np.mean(
+                raw_rewards)
         if constraints:
             logs[
                 f"{tabular._prefix_str}{prefix}/AverageConstraintViolation"

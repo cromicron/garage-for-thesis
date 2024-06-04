@@ -10,6 +10,7 @@ from garage import wrap_experiment
 from garage.envs import MetaWorldSetTaskEnv, normalize
 from garage.experiment import (MetaEvaluator, MetaWorldTaskSampler,
                                SetTaskSampler)
+from garage.experiment.rl2_meta_evaluator import RL2MetaEvaluator
 from garage.experiment.deterministic import set_seed
 from garage.sampler import RaySampler
 from garage.torch.algos import RL2PPO
@@ -46,7 +47,7 @@ def rl2_ppo_metaworld_ml10(ctxt,
         episode_per_task (int): Number of training episode per task.
     """
     start_epoch = 0
-    n_epochs_per_eval = 50
+    n_epochs_per_eval = 1
     run_in_episodes = 0
     set_seed(seed)
     w_and_b = True
@@ -55,6 +56,10 @@ def rl2_ppo_metaworld_ml10(ctxt,
     tasks = MetaWorldTaskSampler(
         ml10, 'train',
         lambda env, _: RL2Env(normalize(env, normalize_reward=True)))
+    test_tasks = MetaWorldTaskSampler(
+        ml10, 'test',
+        lambda env, _: RL2Env(normalize(env, normalize_reward=True)))
+    """
     test_task_sampler = SetTaskSampler(
         MetaWorldSetTaskEnv,
         env=MetaWorldSetTaskEnv(ml10, 'test'),
@@ -68,7 +73,7 @@ def rl2_ppo_metaworld_ml10(ctxt,
                                    start_eval_itr=math.ceil(start_epoch/n_epochs_per_eval),
                                    w_and_b=w_and_b
                                    )
-
+    """
     env_updates = tasks.sample(10)
     env = env_updates[0]()
 
@@ -93,6 +98,7 @@ def rl2_ppo_metaworld_ml10(ctxt,
     baseline.module.to(device=device, dtype=torch.float64)
 
     envs = tasks.sample(meta_batch_size)
+    test_envs = test_tasks.sample(10)
     sampler = RaySampler(
         agents=policy,
         envs=envs,
@@ -101,6 +107,24 @@ def rl2_ppo_metaworld_ml10(ctxt,
         n_workers=meta_batch_size,
         worker_class=RL2Worker,
         worker_args=dict(n_episodes_per_trial=episode_per_task))
+    test_task_sampler = RaySampler(
+        agents=policy,
+        envs=test_envs,
+        max_episode_length=env_spec.max_episode_length,
+        is_tf_worker=False,
+        n_workers=10,
+        worker_class=RL2Worker,
+        worker_args=dict(n_episodes_per_trial=episode_per_task))
+    meta_evaluator = RL2MetaEvaluator(
+        sampler=test_task_sampler,
+        task_sampler=test_tasks,
+        n_exploration_eps=episode_per_task,
+        n_test_tasks=5 * 2,
+        n_test_episodes=10,
+        start_eval_itr=math.ceil(start_epoch/n_epochs_per_eval),
+        w_and_b=w_and_b
+    )
+
     trainer = Trainer(ctxt, start_at=start_epoch)
     algo = RL2PPO(meta_batch_size=meta_batch_size,
                   task_sampler=tasks,
