@@ -97,7 +97,7 @@ def maml_trpo_metaworld_ml10(ctxt, seed, epochs, rollouts_per_task,
         w_and_b=w_and_b,
     )
     if w_and_b:
-        wandb.init("maml-ml10",config={
+        wandb.init(project="maml-ml10",config={
             "inner_rl": inner_lr,
             "meta_batch_size": meta_batch_size,
             "discount": 0.99,
