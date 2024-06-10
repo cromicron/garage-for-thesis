@@ -12,7 +12,7 @@ from garage.experiment import (MetaEvaluator, MetaWorldTaskSampler,
                                SetTaskSampler)
 from garage.experiment.deterministic import set_seed
 from garage.np.baselines import LinearFeatureBaseline
-from garage.sampler import RaySampler #LocalSampler as RaySampler
+from garage.sampler import RaySampler
 from garage.torch.algos import MAMLTRPO
 from garage.torch.policies import GaussianMLPPolicy
 from garage.trainer import Trainer
@@ -45,7 +45,7 @@ def maml_trpo_metaworld_ml10(ctxt, seed, epochs, rollouts_per_task,
 
     """
     set_seed(seed)
-    w_and_b=False
+    w_and_b=True
     ml10 = metaworld.ML10()
     tasks = MetaWorldTaskSampler(
         ml10,
@@ -65,7 +65,6 @@ def maml_trpo_metaworld_ml10(ctxt, seed, epochs, rollouts_per_task,
                                min_std=0.5,
                                max_std=1.5,
                                std_mlp_type='share_mean_std')
-    policy._module.load_state_dict(torch.load("data/maml_weights.pth"))
     value_function = LinearFeatureBaseline(env_spec=env.spec)
 
     meta_evaluator = MetaEvaluator(test_task_sampler=test_sampler,
@@ -98,7 +97,7 @@ def maml_trpo_metaworld_ml10(ctxt, seed, epochs, rollouts_per_task,
         w_and_b=w_and_b,
     )
     if w_and_b:
-        wandb.init("maml-ml10-test",config={
+        wandb.init("maml-ml10",config={
             "inner_rl": inner_lr,
             "meta_batch_size": meta_batch_size,
             "discount": 0.99,
