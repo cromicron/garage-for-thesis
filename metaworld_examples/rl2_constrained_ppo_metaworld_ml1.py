@@ -132,8 +132,8 @@ def rl2_ppo_metaworld_ml1(ctxt,
         sampler=test_task_sampler,
         task_sampler=test_tasks,
         n_exploration_eps=episode_per_task,
-        n_test_tasks=5,
-        n_test_episodes=3,
+        n_test_tasks=10,
+        n_test_episodes=10,
         start_eval_itr=math.ceil(start_epoch/n_epochs_per_eval),
         w_and_b=w_and_b
     )
