@@ -27,17 +27,21 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 @click.command()
 @click.option('--env-name', type=str, default='pick-place-v2')
 @click.option('--seed', default=1)
-@click.option('--meta_batch_size', default=15)
+@click.option('--meta_batch_size', default=25)
 @click.option('--n_epochs', default=4000)
 @click.option('--episode_per_task', default=10)
-@wrap_experiment(snapshot_mode='none', name_parameters='passed')
+@wrap_experiment(
+    snapshot_mode='none',
+    name_parameters='passed',
+    archive_launch_repo=False
+)
 def rl2_ppo_metaworld_ml1(ctxt,
                           env_name,
                           seed,
                           entropy_coefficient=5e-6,
-                          meta_batch_size=10,
+                          meta_batch_size=25,
                           n_epochs=4000,
-                          episode_per_task=2):
+                          episode_per_task=10):
     """Train RL2 PPO with ml1 environment.
 
     Args:
@@ -61,7 +65,7 @@ def rl2_ppo_metaworld_ml1(ctxt,
     n_epochs_per_eval = 5
     set_seed(seed)
     w_and_b = True
-    load_state = True
+    load_state = False
     ml1 = metaworld.ML1(env_name)
     tasks = MetaWorldTaskSampler(
         ml1, 'train',
@@ -69,22 +73,7 @@ def rl2_ppo_metaworld_ml1(ctxt,
     test_tasks = MetaWorldTaskSampler(
         ml1, 'test',
         lambda env, _: RL2Env(normalize(env, normalize_reward=True), n_constraints=1))
-    """
-    test_task_sampler = SetTaskSampler(
-        MetaWorldSetTaskEnv,
-        env=MetaWorldSetTaskEnv(ml1, 'test'),
-        wrapper=lambda env, _: RL2Env(normalize(env, normalize_reward=True),
-                                      n_constraints=1))
-    num_test_envs = 5
-    meta_evaluator = MetaEvaluator(test_task_sampler=test_task_sampler,
-                                   n_exploration_eps=episode_per_task,
-                                   n_test_tasks=num_test_envs * 2,
-                                   n_test_episodes=10,
-                                   start_eval_itr=math.ceil(start_epoch/n_epochs_per_eval),
-                                   w_and_b=w_and_b,
-                                   render_examples=False,
-                                   )
-    """
+
     env_updates = tasks.sample(50)
     env = env_updates[0]()
 
@@ -191,6 +180,9 @@ def rl2_ppo_metaworld_ml1(ctxt,
                        "gae_lambda": 1,
                        "num_grad_updates": 1,
                        "policy_ent_coeff": 5e-5,
+                       "lr_lagrangian": 0.01,
+                       "lagrangian_start": 20,
+                       "constraint_threshold": 0.001,
                        "episode_per_task": episode_per_task
                        # Additional parameters can be added here
                    })
