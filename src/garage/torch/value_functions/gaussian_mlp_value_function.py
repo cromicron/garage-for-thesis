@@ -59,6 +59,7 @@ class GaussianMLPValueFunction(ValueFunction):
                  normalize_inputs=True,
                  normalize_outputs=True,
                  load_weights=False,
+                 weights_dir=None,
                  ):
         super(GaussianMLPValueFunction, self).__init__(env_spec, name)
 
@@ -87,7 +88,10 @@ class GaussianMLPValueFunction(ValueFunction):
         self.x_std = 1
         self.y_mean = 0
         self.y_std = 1
-        self.weights_dir = "saved_models/rl_2_value_funct.pth"
+        if weights_dir is None:
+            self.weights_dir = "saved_models/rl_2_value_funct.pth"
+        else:
+            self.weights_dir = weights_dir
         self.load_weights_from_disc = load_weights
         if load_weights:
             self.load_weights()
