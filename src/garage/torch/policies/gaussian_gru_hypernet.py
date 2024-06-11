@@ -59,6 +59,7 @@ class GaussianHyperGru(nn.Module):
         output_dim,
         policy_input_dim,
         hidden_dim=32,
+        latent_dim=8,
         policy_dim=16,
         hidden_nonlinearity=torch.tanh,
         output_nonlinearity=None,
@@ -98,14 +99,15 @@ class GaussianHyperGru(nn.Module):
             self.n_weights_out,
             self.n_biases_out]
         )
-        self.fc = nn.Linear(hidden_dim, self.n_params_total)
-        nn.init.constant_(self.fc.weight, 0)
-        nn.init.uniform_(self.fc.bias, -0.1, 0.1)
+        self.fc_latent = nn.Linear(hidden_dim, latent_dim)
+        self.fc_param = nn.Linear(latent_dim, self.n_params_total)
+        nn.init.constant_(self.fc_param.weight, 0)
 
 
     def forward(self, x, hidden=None):
         out_rnn, hidden = self.gru(x,hidden)
-        params = self.fc(out_rnn)
+        task_encoding = self.fc_latent(out_rnn)
+        params = self.fc_param(task_encoding)
 
         w_h = params[..., : self.n_weights_hidden]
         i_biases_hidden = self.n_weights_hidden +self.n_biases_hidden
@@ -301,6 +303,7 @@ class GaussianHyperGRUPolicy(Policy):
 if __name__ == "__main__":
     obs = torch.load("states.pt").to(device = "cpu", dtype=torch.float32)
     model = GaussianHyperGru(
+        hidden_dim=256,
         input_dim=obs.shape[-1],
         output_dim=4,
         policy_input_dim=39)
