@@ -125,14 +125,14 @@ def rl2_ppo_metaworld_ml1(ctxt,
         envs=test_envs,
         max_episode_length=env_spec.max_episode_length,
         is_tf_worker=False,
-        n_workers=10,
+        n_workers=5,
         worker_class=RL2Worker,
         worker_args=dict(n_episodes_per_trial=episode_per_task))
     meta_evaluator = RL2MetaEvaluator(
         sampler=test_task_sampler,
         task_sampler=test_tasks,
         n_exploration_eps=episode_per_task,
-        n_test_tasks=10,
+        n_test_tasks=5,
         n_test_episodes=10,
         start_eval_itr=math.ceil(start_epoch/n_epochs_per_eval),
         w_and_b=w_and_b
