@@ -1,9 +1,9 @@
-import copy
+from datetime import datetime
 import torch
 import torch.nn as nn
 import numpy as np
 from garage.torch.policies.stochastic_policy import Policy
-
+import os
 
 class GaussianGRUModule(nn.Module):
     def __init__(
@@ -109,6 +109,7 @@ class GaussianGRUPolicy(Policy):
         state_include_action=True,
         load_weights=False,
         constraints=0,
+        weights_dir=None,
     ):
         super().__init__(env_spec=env_spec, name=name)
         self._env_spec = env_spec
@@ -146,7 +147,11 @@ class GaussianGRUPolicy(Policy):
             layer_normalization=self._layer_normalization,
             output_nonlinearity=self._output_nonlinearity
         )
-        self.weights_dir = "saved_models/rl_2_gru.pth"
+        #
+        if weights_dir is None:
+            self.weights_dir = f"saved_models/rl_2_gru.pth"
+        else:
+            self.weights_dir = weights_dir
         if load_weights:
             self.load_weights()
 
@@ -206,6 +211,12 @@ class GaussianGRUPolicy(Policy):
             info['prev_action'] = np.copy(prev_actions)
         return samples, info
 
+    def eval(self):
+        self._module.eval()
+
+    def train(self, mode=True):
+        self._module.train(mode=mode)
+
     @property
     def state_info_specs(self):
         if self._state_include_action:
@@ -241,6 +252,7 @@ class GaussianGRUPolicy(Policy):
     def save_weights(self):
         """Save the current model parameters to a file."""
         params = self.get_parameters()
+        os.makedirs(os.path.dirname(self.weights_dir), exist_ok=True)
         torch.save(params, self.weights_dir)
 
     def load_weights(self):

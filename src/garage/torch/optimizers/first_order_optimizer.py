@@ -1,3 +1,4 @@
+import os
 import torch
 from torch.utils.data import TensorDataset, DataLoader
 
@@ -28,7 +29,8 @@ class FirstOrderOptimizer:
         callback=None,
         verbose=False,
         name='FirstOrderOptimizer',
-        load_state=False
+        load_state=False,
+        state_dir=None,
     ):
         self._model = model
         self._optimizer_class = optimizer_class
@@ -39,13 +41,16 @@ class FirstOrderOptimizer:
         self._callback = callback
         self._verbose = verbose
         self._name = name
-        # Initializing placeholders for internal use
         self.optimizer = self._optimizer_class(model.parameters(),
                                                 lr=self._learning_rate)
-        self.state_dir = f"saved_models/rl_2_optim_{name}.pth"
+        if state_dir is None:
+            self.state_dir = f"saved_models/rl_2_optim_{name}.pth"
+        else:
+            self.state_dir = f"{state_dir}/{name}.path"
         self._loss_function = None
         if load_state:
             self.load_optimizer_state()
+            pass
 
     def update_opt(self, loss_function):
         """Sets up the optimizer and loss function based on provided arguments.
@@ -113,8 +118,20 @@ class FirstOrderOptimizer:
 
     def save_optimizer_state(self):
         params = self.optimizer.state_dict()
+        os.makedirs(os.path.dirname(self.state_dir), exist_ok=True)
         torch.save(params, self.state_dir)
 
     def load_optimizer_state(self):
-        params = torch.load(self.state_dir)
-        self.optimizer.load_state_dict(params)
+        state_dict = torch.load(self.state_dir)
+        # to guarantee proper dtypes, we first must move
+        # model to optim dtype and then back to where it was
+        model_dtype = next(self._model.parameters()).dtype
+        for p in state_dict["state"][0].values():
+            if isinstance(p, torch.Tensor):
+                optim_dtype = p.dtype
+                break
+        self._model.to(dtype=optim_dtype)
+        self.optimizer.load_state_dict(state_dict)
+        self._model.to(dtype=model_dtype)
+
+

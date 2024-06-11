@@ -386,7 +386,10 @@ class RL2(MetaRLAlgorithm, abc.ABC):
 
         for _ in trainer.step_epochs():
             if self._render_every_i and trainer.step_itr % self._render_every_i == 0:
-                samples = self._meta_evaluator._test_task_sampler.sample(2)
+                if self._meta_evaluator.__class__.__name__ == "RL2MetaEvaluator":
+                    samples = self._meta_evaluator._task_sampler.sample(2)
+                else:
+                    samples = self._meta_evaluator._test_task_sampler.sample(2)
                 worker = RL2Worker(
                     seed=1,
                     max_episode_length=self.max_episode_length,
@@ -402,7 +405,7 @@ class RL2(MetaRLAlgorithm, abc.ABC):
                     worker.update_agent(adapted_policy)
                     worker.rollout()
 
-            if trainer.step_itr % self._n_epochs_per_eval == 0:
+            if trainer.step_itr % self._n_epochs_per_eval == 1:
                 if self._meta_evaluator is not None:
                     self._meta_evaluator.evaluate(
                         self, itr_multiplier=self._n_epochs_per_eval
@@ -446,6 +449,7 @@ class RL2(MetaRLAlgorithm, abc.ABC):
         if device == "cuda":
             self._policy.to("cpu")
         self._policy.to(dtype=torch.float32)
+        self._policy.eval()
         return average_return
 
     def get_exploration_policy(self):

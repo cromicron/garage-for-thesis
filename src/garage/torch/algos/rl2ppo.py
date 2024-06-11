@@ -90,6 +90,7 @@ class RL2PPO(RL2):
                  w_and_b=False,
                  render_every_i=None,
                  run_in_episodes=0,
+                 batch_size_baseline=None,
                  ):
         if optimizer_args is None:
             optimizer_args = dict()
@@ -126,4 +127,5 @@ class RL2PPO(RL2):
                          w_and_b=w_and_b,
                          render_every_i=render_every_i,
                          run_in_episodes=run_in_episodes,
+                         batch_size_baseline=batch_size_baseline,
                          )

@@ -109,7 +109,9 @@ class NPO(RLAlgorithm):
                  multitask=False,
                  num_tasks=None,
                  task_update_frequency=1,
-                 train_task_sampler=None):
+                 train_task_sampler=None,
+                 batch_size_baseline=None,
+                 ):
         self._task_update_frequency = task_update_frequency
         self._multitask = multitask
         self._train_task_sampler = train_task_sampler
@@ -147,6 +149,8 @@ class NPO(RLAlgorithm):
         optimizer_args_bl["model"] = self._baseline
         optimizer_args_bl["name"] = "value"
         optimizer_args_bl["load_state"] = self._baseline.load_weights_from_disc
+        if batch_size_baseline is not None:
+            optimizer_args_bl["batch_size"] = batch_size_baseline
         self._check_entropy_configuration(entropy_method, center_adv,
                                           stop_entropy_gradient,
                                           use_neg_logli_entropy,
