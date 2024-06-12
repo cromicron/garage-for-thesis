@@ -375,9 +375,14 @@ class RL2(MetaRLAlgorithm, abc.ABC):
         """
         last_return = None
         for r in range(self._run_in_episodes):
-            trainer.obtain_episodes(
-                trainer.step_itr,
-                env_update=self._meta_evaluator._test_task_sampler.sample(self._meta_batch_size))
+            if self._meta_evaluator.__class__.__name__ == "RL2MetaEvaluator":
+                trainer.obtain_episodes(
+                    trainer.step_itr,
+                    env_update=self._meta_evaluator._task_sampler.sample(self._meta_batch_size))
+            else:
+                trainer.obtain_episodes(
+                    trainer.step_itr,
+                    env_update=self._meta_evaluator._test_task_sampler.sample(self._meta_batch_size))
 
             trainer.obtain_episodes(
                 trainer.step_itr,
