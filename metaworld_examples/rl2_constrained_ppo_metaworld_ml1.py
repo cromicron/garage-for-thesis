@@ -166,7 +166,7 @@ def rl2_ppo_metaworld_ml1(ctxt,
                   n_epochs_per_eval=n_epochs_per_eval,
                   w_and_b=w_and_b,
                   render_every_i=None,
-                  save_weights=True
+                  save_weights=True,
                   )
 
     trainer.setup(algo, envs)
