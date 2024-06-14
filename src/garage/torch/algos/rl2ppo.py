@@ -69,7 +69,8 @@ class RL2PPO(RL2):
                  lagrangian_start=None,
                  constraint_threshold=0,
                  baseline_const=None,
-                 optimizer_args=None,
+                 optimizer_args_policy=None,
+                 optimizer_args_baseline=None,
                  scope=None,
                  discount=0.99,
                  gae_lambda=1,
@@ -92,8 +93,9 @@ class RL2PPO(RL2):
                  run_in_episodes=0,
                  batch_size_baseline=None,
                  ):
-        if optimizer_args is None:
-            optimizer_args = dict()
+        if optimizer_args_policy is None:
+            optimizer_args_policy = dict()
+            optimizer_args_baseline = dict()
         super().__init__(meta_batch_size=meta_batch_size,
                          task_sampler=task_sampler,
                          env_spec=env_spec,
@@ -114,7 +116,8 @@ class RL2PPO(RL2):
                          lr_clip_range=lr_clip_range,
                          max_kl_step=max_kl_step,
                          optimizer=FirstOrderOptimizer,
-                         optimizer_args=optimizer_args,
+                         optimizer_args_policy=optimizer_args_policy,
+                         optimizer_args_baseline=optimizer_args_baseline,
                          policy_ent_coeff=policy_ent_coeff,
                          use_softplus_entropy=use_softplus_entropy,
                          use_neg_logli_entropy=use_neg_logli_entropy,
@@ -127,5 +130,4 @@ class RL2PPO(RL2):
                          w_and_b=w_and_b,
                          render_every_i=render_every_i,
                          run_in_episodes=run_in_episodes,
-                         batch_size_baseline=batch_size_baseline,
                          )

@@ -11,7 +11,7 @@ from garage.envs import MetaWorldSetTaskEnv, normalize
 from garage.experiment import MetaWorldTaskSampler
 from garage.experiment.rl2_meta_evaluator import RL2MetaEvaluator
 from garage.experiment.deterministic import set_seed
-from garage.sampler import LocalSampler as RaySampler
+from garage.sampler import RaySampler
 from garage.torch.algos import RL2PPO
 from garage.torch.algos.rl2 import RL2Env, RL2Worker
 from garage.torch.value_functions import GaussianMLPValueFunction
@@ -125,7 +125,11 @@ def rl2_ppo_metaworld_ml10(ctxt,
                   discount=0.99,
                   gae_lambda=0.95,
                   lr_clip_range=0.2,
-                  optimizer_args=dict(batch_size=256,
+                  optimizer_args_policy=dict(batch_size=2,
+                                      max_optimization_epochs=10,
+                                      learning_rate=5e-4,
+                                      load_state=load_state),
+                  optimizer_args_baseline=dict(batch_size=256,
                                       max_optimization_epochs=10,
                                       learning_rate=5e-4,
                                       load_state=load_state),

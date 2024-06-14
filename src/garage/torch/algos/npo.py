@@ -99,7 +99,8 @@ class NPO(RLAlgorithm):
                  lr_clip_range=0.01,
                  max_kl_step=0.01,
                  optimizer=None,
-                 optimizer_args=None,
+                 optimizer_args_policy=None,
+                 optimizer_args_baseline=None,
                  policy_ent_coeff=0.0,
                  use_softplus_entropy=False,
                  use_neg_logli_entropy=False,
@@ -110,7 +111,6 @@ class NPO(RLAlgorithm):
                  num_tasks=None,
                  task_update_frequency=1,
                  train_task_sampler=None,
-                 batch_size_baseline=None,
                  ):
         self._task_update_frequency = task_update_frequency
         self._multitask = multitask
@@ -140,17 +140,16 @@ class NPO(RLAlgorithm):
         self._stop_entropy_gradient = stop_entropy_gradient
         self._pg_loss = pg_loss
         if optimizer is None:
-            if optimizer_args is None:
-                optimizer_args = dict()
+            if optimizer_args_policy is None:
+                optimizer_args_policy = dict()
+            if optimizer_args_baseline is None:
+                optimizer_args_baseline = dict()
             optimizer = FirstOrderOptimizer
-        optimizer_args_bl = copy.deepcopy(optimizer_args)
-        optimizer_args["model"] = self.policy
-        optimizer_args["name"] = "policy"
-        optimizer_args_bl["model"] = self._baseline
-        optimizer_args_bl["name"] = "value"
-        optimizer_args_bl["load_state"] = self._baseline.load_weights_from_disc
-        if batch_size_baseline is not None:
-            optimizer_args_bl["batch_size"] = batch_size_baseline
+        optimizer_args_policy["model"] = self.policy
+        optimizer_args_policy["name"] = "policy"
+        optimizer_args_baseline["model"] = self._baseline
+        optimizer_args_baseline["name"] = "value"
+        optimizer_args_baseline["load_state"] = self._baseline.load_weights_from_disc
         self._check_entropy_configuration(entropy_method, center_adv,
                                           stop_entropy_gradient,
                                           use_neg_logli_entropy,
@@ -160,12 +159,12 @@ class NPO(RLAlgorithm):
             raise ValueError('Invalid pg_loss')
         # move model to gpu if possible before creating optimizer
         self.policy.to(device)
-        self._optimizer = make_optimizer(optimizer, **optimizer_args)
+        self._optimizer = make_optimizer(optimizer, **optimizer_args_policy)
         self._optimizer.update_opt(self._policy_loss)
-        self._bl_optimizer = make_optimizer(optimizer, **optimizer_args_bl)
+        self._bl_optimizer = make_optimizer(optimizer, **optimizer_args_baseline)
         self._bl_optimizer.update_opt(self._baseline.compute_loss)
         if baseline_const:
-            optimizer_args_bl_const = copy.deepcopy(optimizer_args_bl)
+            optimizer_args_bl_const = copy.deepcopy(optimizer_args_baseline)
             optimizer_args_bl_const["model"] = self._baseline_const
             optimizer_args_bl_const["name"] = "value_constraint"
             optimizer_args_bl_const[
@@ -382,8 +381,8 @@ class NPO(RLAlgorithm):
             i (namedtuple): Collection of variables to compute policy loss.
 
         Returns:
-            tf.Tensor: Policy loss.
-            tf.Tensor: Mean policy KL divergence.
+            torch.Tensor: Policy loss.
+            torch.Tensor: Mean policy KL divergence.
 
         """
         batch_size = states.shape[0]
