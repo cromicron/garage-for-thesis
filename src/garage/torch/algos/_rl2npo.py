@@ -93,8 +93,10 @@ class RL2NPO(NPO):
         logger.log('Optimizing')
 
         self._optimizer.optimize(inputs)
+        torch.cuda.empty_cache()
         logger.log('Computing loss after')
-        loss_after, policy_kl = self._policy_loss(*inputs)
+        with torch.no_grad():
+            loss_after, policy_kl = self._policy_loss(*inputs)
 
         tabular.record('{}/LossBefore'.format(self.policy.name), loss_before)
         tabular.record('{}/LossAfter'.format(self.policy.name), loss_after)
