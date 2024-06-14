@@ -4,6 +4,7 @@ import numpy as np
 from typing import Tuple, Any, Optional
 import copy
 from torch import Tensor
+import os
 
 from garage.torch.policies.stochastic_policy import Policy
 from garage.torch.modules import GRUEncoder, HyperNetwork
@@ -38,6 +39,7 @@ class GaussianHyperGRUPolicy(Policy):
         output_nonlinearity=lambda x: x,
         state_include_action=False,
         load_weights=False,
+        weights_dir=None,
         n_constraints=0,
     ):
 
@@ -61,6 +63,7 @@ class GaussianHyperGRUPolicy(Policy):
             output_nonlinearity:
             state_include_action:
             load_weights:
+            weights_dir:
             n_constraints:
         """
         super().__init__(env_spec=env_spec, name=name)
@@ -127,7 +130,10 @@ class GaussianHyperGRUPolicy(Policy):
             self._mainnet_dim,
             mainnet_nonlinearity=self._policy_nonlinearity
         )
-        self.weights_dir = "saved_models/rl_2_gru.pth"
+        if weights_dir is None:
+            self.weights_dir = "saved_models/rl_2_gru.pth"
+        else:
+            self.weights_dir = weights_dir
         if load_weights:
             self.load_weights()
 
@@ -289,7 +295,9 @@ class GaussianHyperGRUPolicy(Policy):
     def save_weights(self):
         """Save the current model parameters to a file."""
         params = self.get_parameters()
+        os.makedirs(os.path.dirname(self.weights_dir), exist_ok=True)
         torch.save(params, self.weights_dir)
+
 
     def load_weights(self):
         """Load model parameters from the file specified by weights_dir."""

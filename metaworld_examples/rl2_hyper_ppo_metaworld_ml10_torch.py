@@ -50,7 +50,7 @@ def rl2_ppo_metaworld_ml10(ctxt,
         episode_per_task (int): Number of training episode per task.
     """
     start_epoch = 0
-    n_epochs_per_eval = 2
+    n_epochs_per_eval = 5
     run_in_episodes = 0
     set_seed(seed)
     w_and_b = True
@@ -77,11 +77,13 @@ def rl2_ppo_metaworld_ml10(ctxt,
         max_std=1.5,
         output_nonlinearity=torch.tanh,
         load_weights=load_state,
+        weights_dir=f"saved_models/rl2_ml10_hyper/rl_2_gru.pth",
     )
     baseline = GaussianMLPValueFunction(
         env_spec=env.spec,
         hidden_sizes=(128, 128),
-        load_weights=load_state
+        load_weights=load_state,
+        weights_dir=f"saved_models/rl2_ml10_hyper/baseline.pth"
         )
     baseline.module.to(device=device, dtype=torch.float64)
 
@@ -135,7 +137,7 @@ def rl2_ppo_metaworld_ml10(ctxt,
                   episodes_per_trial=episode_per_task,
                   use_neg_logli_entropy=True,
                   n_epochs_per_eval=n_epochs_per_eval,
-                  save_weights=False,
+                  save_weights=True,
                   w_and_b=w_and_b,
                   run_in_episodes=run_in_episodes,
                   render_every_i=None
