@@ -68,24 +68,17 @@ def rl2_ppo_metaworld_ml10(ctxt,
 
     env_spec = env.spec
     policy = GaussianHyperGRUPolicy(
-        name='policy',
+        env_spec=env.spec,
+        is_actor_critic=True,
         hidden_dim=256,
-        env_spec=env_spec,
         policy_input_dim=40,
-        state_include_action=False,
-        min_std=0.5,
+        input_dim_policy_net=256,
+        output_dim=4,
+        min_std=0.1,
         max_std=1.5,
-        output_nonlinearity=torch.tanh,
         load_weights=load_state,
         weights_dir=f"saved_models/rl2_ml10_hyper/rl_2_gru.pth",
     )
-    baseline = GaussianMLPValueFunction(
-        env_spec=env.spec,
-        hidden_sizes=(128, 128),
-        load_weights=load_state,
-        weights_dir=f"saved_models/rl2_ml10_hyper/baseline.pth"
-        )
-    baseline.module.to(device=device, dtype=torch.float64)
 
     envs = tasks.sample(meta_batch_size)
     test_envs = test_tasks.sample(10)
@@ -120,16 +113,12 @@ def rl2_ppo_metaworld_ml10(ctxt,
                   task_sampler=tasks,
                   env_spec=env_spec,
                   policy=policy,
-                  baseline=baseline,
+                  baseline=None,
                   sampler=sampler,
                   discount=0.99,
                   gae_lambda=0.95,
                   lr_clip_range=0.2,
-                  optimizer_args_policy=dict(batch_size=2,
-                                      max_optimization_epochs=10,
-                                      learning_rate=5e-4,
-                                      load_state=load_state),
-                  optimizer_args_baseline=dict(batch_size=256,
+                  optimizer_args_policy=dict(batch_size=1,
                                       max_optimization_epochs=10,
                                       learning_rate=5e-4,
                                       load_state=load_state),
@@ -146,7 +135,6 @@ def rl2_ppo_metaworld_ml10(ctxt,
                   run_in_episodes=run_in_episodes,
                   render_every_i=None
                   )
-
     trainer.setup(algo, envs)
     if w_and_b:
         wandb.init(project="rl2_hyper_ml10",

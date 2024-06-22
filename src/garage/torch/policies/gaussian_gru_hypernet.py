@@ -23,6 +23,7 @@ class GaussianHyperGRUPolicy(Policy):
     def __init__(
         self,
         env_spec,
+        is_actor_critic=False,
         hidden_dim=32,
         emb_size_gru=10,
         policy_input_dim=40,
@@ -68,6 +69,7 @@ class GaussianHyperGRUPolicy(Policy):
         """
         super().__init__(env_spec=env_spec, name=name)
         self._env_spec = env_spec
+        self.is_actor_critic = is_actor_critic
         self._action_dim = self._env_spec.action_space.flat_dim
         self._obs_dim = env_spec.observation_space.flat_dim
         self._policy_input_dim = policy_input_dim
@@ -128,6 +130,13 @@ class GaussianHyperGRUPolicy(Policy):
             self._input_dim_hyper_latent,
             self._input_dim_policy_net,
             self._mainnet_dim,
+            mainnet_nonlinearity=self._policy_nonlinearity
+        )
+        if self.is_actor_critic:
+            self._hyper_network_critic = HyperNetwork(
+            self._input_dim_hyper_latent,
+            self._input_dim_policy_net,
+            self._mainnet_dim[: -1] + [1],
             mainnet_nonlinearity=self._policy_nonlinearity
         )
         if weights_dir is None:
@@ -199,7 +208,7 @@ class GaussianHyperGRUPolicy(Policy):
         self._prev_hiddens[:, do_resets_torch] = self._init_hidden.to(
             device=device, dtype=dtype)
 
-    def forward(self, state, hidden=None):
+    def forward(self, state, hidden=None, get_value=False):
         s, a, r, c = self.extract_elements_from_obs(state)
         input_hyper = self.create_features(s, a, r, c)
         latent, hidden = self._encoder(input_hyper, hidden)
@@ -223,7 +232,24 @@ class GaussianHyperGRUPolicy(Policy):
         std = torch.exp(log_std)
         distribution = torch.distributions.Normal(mean, std)
 
+        if get_value:
+            mainnet_critic = self._hyper_network_critic(embedding)
+            v = mainnet_critic.forward(policy_input).squeeze(-1)
+            return distribution, hidden, v
         return distribution, hidden
+
+    def get_value(self, state, hidden=None):
+        s, a, r, c = self.extract_elements_from_obs(state)
+        input_hyper = self.create_features(s, a, r, c)
+        latent, hidden = self._encoder(input_hyper, hidden)
+        embedding = self._hyper_input_nonlinearity(
+            self._fc_latent(latent))
+        policy_input = self._hyper_input_nonlinearity(
+            self._fc_policy_input(s))
+
+        mainnet_critic = self._hyper_network_critic(embedding)
+        v = mainnet_critic.forward(policy_input).squeeze(-1)
+        return v
 
 
     def get_action(self, observation):
@@ -263,6 +289,7 @@ class GaussianHyperGRUPolicy(Policy):
     def clone(self, name):
         new_policy = self.__class__(
             env_spec=self._env_spec,
+            is_actor_critic=self.is_actor_critic,
             hidden_dim=self._hidden_dim,
             emb_size_gru=self._emb_size_gru,
             policy_input_dim=self._policy_input_dim,
@@ -343,13 +370,19 @@ if __name__ == "__main__":
             env = task(render_mode="human")
     policy = GaussianHyperGRUPolicy(
         env_spec=env.spec,
+        is_actor_critic=True,
         hidden_dim=256,
-        policy_input_dim=46,
+        policy_input_dim=40,
         input_dim_policy_net=256,
         output_dim=4,
         min_std=0.1,
         max_std=1.5,
-        n_constraints=1,
+        n_constraints=0,
     )
-    policy.traverse_episodes(env, n_episodes=5)
+    policy.to(device="cuda", dtype=torch.double)
+    #policy.traverse_episodes(env, n_episodes=5)
+    states = torch.load("states.pt")
+    print(states.shape)
+    v = policy.get_value(states)
+    print(v.mean())
 

@@ -13,7 +13,7 @@ from garage import log_performance, log_multitask_performance, make_optimizer
 from garage.np import explained_variance_1d, pad_batch_array
 from garage.np.algos import RLAlgorithm
 from garage.torch._functions import (
-    zero_optim_grads, compute_advantages, flatten_inputs)
+    zero_optim_grads, compute_advantages, flatten_inputs, torch_to_np)
 from garage.np. _functions import discount_cumsum
 from garage.tf import center_advs, positive_advs
 from garage.torch.optimizers import FirstOrderOptimizer
@@ -147,9 +147,10 @@ class NPO(RLAlgorithm):
             optimizer = FirstOrderOptimizer
         optimizer_args_policy["model"] = self.policy
         optimizer_args_policy["name"] = "policy"
-        optimizer_args_baseline["model"] = self._baseline
-        optimizer_args_baseline["name"] = "value"
-        optimizer_args_baseline["load_state"] = self._baseline.load_weights_from_disc
+        if self._baseline is not None:
+            optimizer_args_baseline["model"] = self._baseline
+            optimizer_args_baseline["name"] = "value"
+            optimizer_args_baseline["load_state"] = self._baseline.load_weights_from_disc
         self._check_entropy_configuration(entropy_method, center_adv,
                                           stop_entropy_gradient,
                                           use_neg_logli_entropy,
@@ -161,8 +162,9 @@ class NPO(RLAlgorithm):
         self.policy.to(device)
         self._optimizer = make_optimizer(optimizer, **optimizer_args_policy)
         self._optimizer.update_opt(self._policy_loss)
-        self._bl_optimizer = make_optimizer(optimizer, **optimizer_args_baseline)
-        self._bl_optimizer.update_opt(self._baseline.compute_loss)
+        if self._baseline is not None:
+            self._bl_optimizer = make_optimizer(optimizer, **optimizer_args_baseline)
+            self._bl_optimizer.update_opt(self._baseline.compute_loss)
         if baseline_const:
             optimizer_args_bl_const = copy.deepcopy(optimizer_args_baseline)
             optimizer_args_bl_const["model"] = self._baseline_const
@@ -390,7 +392,16 @@ class NPO(RLAlgorithm):
             do_resets= np.full(shape=batch_size, fill_value=True),
             dtype=torch.float64
         )
-        dist, _ = self.policy.forward(states)
+        if self.policy.is_actor_critic:
+            # calculate temporal difference loss
+            dist, _, value_pred = self.policy.forward(states, get_value=True)
+            # bootstrap last pred to be same as previous pred
+            next_pred = torch.cat(
+                [value_pred[:, 1:], value_pred[:, -1:]], dim=1)
+            td_errors = rewards + self._discount * next_pred - value_pred
+            critic_loss = (0.5*td_errors**2).mean()
+        else:
+            dist, _ = self.policy.forward(states)
         policy_entropy = self._entropy(dist, actions)
 
         if self._maximum_entropy:
@@ -468,6 +479,8 @@ class NPO(RLAlgorithm):
         # Maximize E[surrogate objective] by minimizing
         # -E_t[surrogate objective]
         loss = -obj.mean()
+        if self.policy.is_actor_critic:
+            loss += critic_loss
         return loss, pol_mean_kl
 
     def _entropy(self, dist, actions):

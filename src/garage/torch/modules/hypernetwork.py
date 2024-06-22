@@ -52,7 +52,7 @@ class Mainnet:
         for weights, biases in zip(self._weights[: -1], self._biases[: -1]):
             x = torch.matmul(weights, x.unsqueeze(-1)).squeeze() + biases
             x = self._activation(x)
-        output = torch.matmul(self._weights[-1], x.unsqueeze(-1)).squeeze() + self._biases[-1]
+        output = torch.matmul(self._weights[-1], x.unsqueeze(-1)).squeeze(-1) + self._biases[-1]
         return output
 class HyperNetwork(nn.Module):
     def __init__(

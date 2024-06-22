@@ -71,7 +71,9 @@ class RL2NPO(NPO):
         """
         # Baseline predictions with all zeros for feeding inputs of Tensorflow
         baselines = np.zeros((len(episodes.lengths), max(episodes.lengths)))
-        returns = self._fit_baseline_with_data(episodes, baselines)
+        if not self.policy.is_actor_critic:
+            # if actor critic, actor and critic share loss and opt
+            self._fit_baseline_with_data(episodes, baselines)
 
         with torch.no_grad():
             baselines = self._get_baseline_prediction(episodes)
@@ -141,13 +143,21 @@ class RL2NPO(NPO):
                 :math:`(N, max_episode_length * episode_per_task)`.
 
         """
-        obs = [
-            self._baseline.forward(torch.tensor(
-                obs,
-                dtype=torch.float32,
-                device=device)).squeeze()
-            for obs in episodes.observations_list
-        ]
+        if self.policy.is_actor_critic:
+            obs_tensor = torch.stack([
+                torch.tensor(np_array, dtype=torch.double, device=device) for np_array in episodes.observations_list
+            ], dim=0)
+
+            return self.policy.get_value(obs_tensor)
+
+        else:
+            obs = [
+                self._baseline.forward(torch.tensor(
+                    obs,
+                    dtype=torch.float32,
+                    device=device)).squeeze()
+                for obs in episodes.observations_list
+            ]
         return pad_batch_array(torch.cat(obs, dim=0), episodes.lengths,
                                self.max_episode_length)
 
