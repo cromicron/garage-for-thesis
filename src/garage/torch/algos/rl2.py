@@ -410,7 +410,7 @@ class RL2(MetaRLAlgorithm, abc.ABC):
                     worker.update_agent(adapted_policy)
                     worker.rollout()
 
-            if trainer.step_itr % self._n_epochs_per_eval == 1:
+            if trainer.step_itr % self._n_epochs_per_eval == 0:
                 if self._meta_evaluator is not None:
                     self._meta_evaluator.evaluate(
                         self, itr_multiplier=self._n_epochs_per_eval
