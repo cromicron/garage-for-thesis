@@ -126,7 +126,7 @@ class RL2NPO(NPO):
             self._optimizer.save_optimizer_state()
             if not self.policy.is_actor_critic:
                 self._baseline.save_weights()
-            self._bl_optimizer.save_optimizer_state()
+                self._bl_optimizer.save_optimizer_state()
             if self._lagrangian:
                 self._baseline_const.save_weights()
                 self._bl_optimizer_const.save_optimizer_state()
