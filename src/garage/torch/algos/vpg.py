@@ -60,6 +60,7 @@ class VPG(RLAlgorithm):
         policy,
         value_function,
         sampler,
+        value_function_const=None,
         policy_optimizer=None,
         vf_optimizer=None,
         num_train_per_epoch=1,
@@ -71,12 +72,17 @@ class VPG(RLAlgorithm):
         use_softplus_entropy=False,
         stop_entropy_gradient=False,
         entropy_method='no_entropy',
+        constraint=False,
     ):
         self._discount = discount
         self.policy = policy
         self.max_episode_length = env_spec.max_episode_length
-
         self._value_function = value_function
+        self._constraint = constraint
+        if constraint:
+            assert value_function_const is not None, \
+                "no value function for constraint specified"
+        self._value_function_const = value_function_const
         self._gae_lambda = gae_lambda
         self._center_adv = center_adv
         self._positive_adv = positive_adv
@@ -290,7 +296,16 @@ class VPG(RLAlgorithm):
 
         return loss
 
-    def _compute_loss(self, obs, actions, rewards, valids, baselines):
+    def _compute_loss(
+        self,
+        obs,
+        actions,
+        rewards,
+        valids,
+        baselines,
+        penalties=None,
+        baselines_constraint=None
+    ):
         r"""Compute mean value of loss.
 
         Notes: P is the maximum episode length (self.max_episode_length)
@@ -305,6 +320,11 @@ class VPG(RLAlgorithm):
             valids (list[int]): Numbers of valid steps in each episode
             baselines (torch.Tensor): Value function estimation at each step
                 with shape :math:`(N, P)`.
+            penalties (torch.Tensor): Acquired penalties
+                with shape :math:`(N, P)`.
+            baselines_constraint (torch.Tensor): Value function estimation
+             of penalties at each step
+                with shape :math:`(N, P)`.
 
         Returns:
             torch.Tensor: Calculated negative mean scalar value of
@@ -315,6 +335,15 @@ class VPG(RLAlgorithm):
         actions_flat = torch.cat(filter_valids(actions, valids))
         rewards_flat = torch.cat(filter_valids(rewards, valids))
         advantages_flat = self._compute_advantage(rewards, valids, baselines)
+        if self._constraint:
+            advantages_flat_const = self._compute_advantage(
+                penalties, valids, baselines_constraint
+            )
+
+            l = self.policy.lagrangian.detach()
+            advantages_flat = (
+                (advantages_flat - l * advantages_flat_const)
+            )/(1+l)
 
         return self._compute_loss_with_adv(obs_flat, actions_flat,
                                            rewards_flat, advantages_flat)
@@ -337,7 +366,6 @@ class VPG(RLAlgorithm):
 
         """
         objectives = self._compute_objective(advantages, obs, actions, rewards)
-
         if self._entropy_regularzied:
             policy_entropies = self._compute_policy_entropy(obs)
             objectives += self._policy_ent_coeff * policy_entropies

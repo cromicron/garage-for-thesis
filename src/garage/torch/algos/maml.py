@@ -57,6 +57,9 @@ class MAML:
                  meta_evaluator=None,
                  evaluate_every_n_epochs=1,
                  w_and_b=False,
+                 constraint=False,
+                 lr_constraint=None,
+                 constraint_threshold=None,
                  ):
         self._sampler = sampler
 
@@ -67,6 +70,7 @@ class MAML:
         self._env = env
         self._task_sampler = task_sampler
         self._value_function = inner_algo._value_function
+        self._value_function_const = inner_algo._value_function_const
         self._num_grad_updates = num_grad_updates
         self._meta_batch_size = meta_batch_size
         self._inner_algo = inner_algo
@@ -77,6 +81,11 @@ class MAML:
                                               eps=_Default(1e-5))
         self._evaluate_every_n_epochs = evaluate_every_n_epochs
         self._w_and_b=w_and_b
+        self._constraint = constraint
+        if constraint:
+            self._optimizer_lagrangian = torch.optim.Adam(
+                [policy.lagrangian], lr=lr_constraint)
+            self._constraint_threshold = constraint_threshold
 
     def train(self, trainer):
         """Obtain samples and start training for each epoch.
@@ -146,16 +155,41 @@ class MAML:
         baselines = torch.cat(baselines_list).numpy().flatten()
         ev = explained_variance_1d(baselines, np.array(returns).flatten())
 
+        if self._constraint:
+            baselines_const_list = []
+            const_violations = []
+            cum_penalties = []
+            for task in all_samples:
+                for rollout in task:
+                    const_violations.append(rollout.const_violations.sum().item())
+                    baselines_const_list.append(
+                        rollout.baselines_const[rollout.valids.bool()])
+                    cum_penalties.append(
+                        [r['penalties'] for r in rollout.paths])
+            baselines_const = torch.cat(baselines_const_list).numpy().flatten()
+            ev_const = explained_variance_1d(baselines_const, np.array(cum_penalties).flatten())
+
+            self._optimizer_lagrangian.zero_grad()
+            lagrangian_loss = (
+                torch.tensor(const_violations) - \
+                              self._constraint_threshold*self.max_episode_length
+            ).mean()
+            lagrangian_loss.backward()
+            self._optimizer_lagrangian.step()
+
         with torch.no_grad():
             policy_entropy = self._compute_policy_entropy(
                 [task_samples[0] for task_samples in all_samples])
             stddev = self._compute_policy_stddev(
                 [task_samples[0] for task_samples in all_samples])
-            average_return = self._log_performance(
-                itr, all_samples, meta_objective.item(), loss_after.item(),
+            to_log = [itr, all_samples, meta_objective.item(), loss_after.item(),
                 kl_before.item(), kl_after.item(),
                 policy_entropy.mean().item(),
-                stddev.mean().item(), ev)
+                stddev.mean().item(), ev]
+
+            if self._constraint:
+                to_log.extend([const_violations, ev_const])
+            average_return = self._log_performance(*to_log)
 
         if self._meta_evaluator and itr % self._evaluate_every_n_epochs == 0:
             self._meta_evaluator.evaluate(self)
@@ -376,10 +410,16 @@ class MAML:
 
         """
         paths = episodes.to_list()
+        if self._constraint:
+            all_constraint_violations = []
         for path in paths:
             path['returns'] = discount_cumsum(
                 path['rewards'], self._inner_algo.discount).copy()
-
+            if self._constraint:
+                const_violations = path["env_infos"]["constraint"].astype("float")
+                all_constraint_violations.append(const_violations)
+                path['penalties'] = discount_cumsum(
+                    const_violations, self._inner_algo.discount).copy()
         self._value_function.fit(paths)
 
         obs = torch.Tensor(episodes.padded_observations)
@@ -388,13 +428,31 @@ class MAML:
         valids = torch.Tensor(episodes.lengths).int()
         baselines = torch.Tensor(
             [self._value_function.predict(path) for path in paths])
-
+        if self._constraint:
+            const_violations = torch.Tensor(np.stack(all_constraint_violations))
+            self._value_function_const.fit(paths, y_label="penalties")
+            baselines_const = torch.Tensor(
+                [self._value_function_const.predict(path) for path in paths]
+            )
+            return _MAMLEpisodeBatchConstrained(paths, obs, actions, rewards, valids,
+                                     baselines, const_violations, baselines_const)
         return _MAMLEpisodeBatch(paths, obs, actions, rewards, valids,
                                  baselines)
 
-    def _log_performance(self, itr, all_samples, loss_before, loss_after,
-                         kl_before, kl, policy_entropy, stddev,
-                         explained_variance):
+    def _log_performance(
+        self,
+        itr,
+        all_samples,
+        loss_before,
+        loss_after,
+        kl_before,
+        kl,
+        policy_entropy,
+        stddev,
+        explained_variance,
+        const_violations=None,
+        ev_const=None
+    ):
         """Evaluate performance of this batch.
 
         Args:
@@ -529,6 +587,59 @@ class _MAMLEpisodeBatch(
         baselines (numpy.ndarray): An numpy array of shape
             :math:`(N \bullet T, )` containing the value function estimation
             at all time steps in this batch.
+
+    Raises:
+        ValueError: If any of the above attributes do not conform to their
+            prescribed types and shapes.
+
+    """
+
+
+class _MAMLEpisodeBatchConstrained(
+        collections.namedtuple('_MAMLEpisodeBatch', [
+            'paths', 'observations', 'actions', 'rewards', 'valids',
+            'baselines', 'const_violations', 'baselines_const'
+        ])):
+    r"""A tuple representing a batch of whole episodes in MAML.
+
+    A :class:`_MAMLEpisodeBatch` represents a batch of whole episodes
+    produced from one environment.
+    +-----------------------+-------------------------------------------------+
+    | Symbol                | Description                                     |
+    +=======================+=================================================+
+    | :math:`N`             | Episode batch dimension                         |
+    +-----------------------+-------------------------------------------------+
+    | :math:`T`             | Maximum length of an episode                    |
+    +-----------------------+-------------------------------------------------+
+    | :math:`S^*`           | Single-step shape of a time-series tensor       |
+    +-----------------------+-------------------------------------------------+
+
+    Attributes:
+        paths (list[dict[str, np.ndarray or dict[str, np.ndarray]]]):
+            Nonflatten original paths from sampler.
+        observations (torch.Tensor): A torch tensor of shape
+            :math:`(N \bullet T, O^*)` containing the (possibly
+            multi-dimensional) observations for all time steps in this batch.
+            These must conform to :obj:`env_spec.observation_space`.
+        actions (torch.Tensor): A torch tensor of shape
+            :math:`(N \bullet T, A^*)` containing the (possibly
+            multi-dimensional) actions for all time steps in this batch. These
+            must conform to :obj:`env_spec.action_space`.
+        rewards (torch.Tensor): A torch tensor of shape
+            :math:`(N \bullet T)` containing the rewards for all time
+            steps in this batch.
+        valids (numpy.ndarray): An integer numpy array of shape :math:`(N, )`
+            containing the length of each episode in this batch. This may be
+            used to reconstruct the individual episodes.
+        baselines (numpy.ndarray): An numpy array of shape
+            :math:`(N \bullet T, )` containing the value function estimation
+            at all time steps in this batch.
+        const_violations (torch.Tensor): A torch tensor of shape
+            :math:`(N \bullet T)` containing the constraint violations
+             for all time steps in this batch.
+        baselines_const (numpy.ndarray): An numpy array of shape
+            :math:`(N \bullet T, )` containing the value function
+            estimation for penalties at all time steps in this batch.
 
     Raises:
         ValueError: If any of the above attributes do not conform to their

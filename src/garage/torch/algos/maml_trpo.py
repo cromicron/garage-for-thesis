@@ -60,6 +60,7 @@ class MAMLTRPO(MAML):
                  max_kl_step=0.01,
                  discount=0.99,
                  gae_lambda=1,
+                 value_function_const=None,
                  center_adv=True,
                  positive_adv=False,
                  policy_ent_coeff=0.0,
@@ -71,8 +72,13 @@ class MAMLTRPO(MAML):
                  meta_evaluator=None,
                  evaluate_every_n_epochs=1,
                  w_and_b=False,
+                 constraint=False,
+                 constraint_threshold=None,
+                 lr_constraint=None
                  ):
-
+        if constraint:
+            assert value_function_const is not None, \
+                "specify a value function for constraints"
         policy_optimizer = OptimizerWrapper(
             (torch.optim.Adam, dict(lr=inner_lr)), policy)
 
@@ -80,6 +86,7 @@ class MAMLTRPO(MAML):
                          policy,
                          value_function,
                          None,
+                         value_function_const=value_function_const,
                          policy_optimizer=policy_optimizer,
                          vf_optimizer=None,
                          num_train_per_epoch=1,
@@ -90,7 +97,9 @@ class MAMLTRPO(MAML):
                          policy_ent_coeff=policy_ent_coeff,
                          use_softplus_entropy=use_softplus_entropy,
                          stop_entropy_gradient=stop_entropy_gradient,
-                         entropy_method=entropy_method)
+                         entropy_method=entropy_method,
+                         constraint=constraint
+                         )
 
         meta_optimizer = (ConjugateGradientOptimizer,
                           dict(max_constraint_value=max_kl_step))
@@ -108,4 +117,7 @@ class MAMLTRPO(MAML):
                          meta_evaluator=meta_evaluator,
                          evaluate_every_n_epochs=evaluate_every_n_epochs,
                          w_and_b=w_and_b,
+                         constraint=constraint,
+                         lr_constraint=lr_constraint,
+                         constraint_threshold=constraint_threshold,
                          )
