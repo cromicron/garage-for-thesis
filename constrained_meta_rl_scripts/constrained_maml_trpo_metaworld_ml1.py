@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""This is an example to train MAML-TRPO on ML1 Push environment."""
+"""Train Constrained Meta-Rl on metaworld pick-place env"""
 # pylint: disable=no-value-for-parameter
 # yapf: disable
 import click
-import metaworld_constrained_v2 as metaworld
+import metaworld_constrained as metaworld
 import torch
 
 from garage import wrap_experiment
@@ -12,10 +12,11 @@ from garage.experiment import (MetaEvaluator, MetaWorldTaskSampler,
                                SetTaskSampler)
 from garage.experiment.deterministic import set_seed
 from garage.np.baselines import LinearFeatureBaseline
-from garage.sampler import LocalSampler as RaySampler
+from garage.sampler import RaySampler
 from garage.torch.algos import MAMLTRPO
 from garage.torch.policies import GaussianMLPPolicy
 from garage.trainer import Trainer
+import wandb
 
 
 # yapf: enable
@@ -23,14 +24,25 @@ from garage.trainer import Trainer
 @click.option('--env-name', type=str, default='pick-place-v2')
 @click.option('--seed', type=int, default=1)
 @click.option('--epochs', type=int, default=2000)
-@click.option('--rollouts_per_task', type=int, default=1)
-@click.option('--meta_batch_size', type=int, default=5)
+@click.option('--rollouts_per_task', type=int, default=10)
+@click.option('--meta_batch_size', type=int, default=25)
 @click.option('--inner_lr', default=1e-4, type=float)
-@click.option('--lr_lagrangian', default=1e-3, type=float)
+@click.option('--lr_lagrangian', default=5e-3, type=float)
 @click.option('--lagrangian', default=30.0, type=float)
-@wrap_experiment(snapshot_mode='none', name_parameters='passed')
-def constrained_maml_trpo_metaworld_ml1(ctxt, env_name, seed, epochs, rollouts_per_task,
-                            meta_batch_size, inner_lr, lagrangian, lr_lagrangian):
+@click.option('--w_and_b', default=True, type=bool)
+@wrap_experiment(snapshot_mode='none', name_parameters='passed', archive_launch_repo = False)
+def constrained_maml_trpo_metaworld_ml1(
+    ctxt,
+    env_name,
+    seed,
+    epochs,
+    rollouts_per_task,
+    meta_batch_size,
+    inner_lr,
+    lagrangian,
+    lr_lagrangian,
+    w_and_b
+):
     """Set up environment and algorithm and run the task.
 
     Args:
@@ -47,16 +59,22 @@ def constrained_maml_trpo_metaworld_ml1(ctxt, env_name, seed, epochs, rollouts_p
         inner_lr (float): learning rate to use for the inner TRPO agent.
             This hyperparameter is typically the one to tune when tuning
             your MAML.
+        lagrangian (float): Initial value for lagrangian multiplier
+        w_and_b (bool): Whether to log to weights and biases
 
     """
     set_seed(seed)
 
-    ml1 = metaworld.ML1(env_name, constraint_mode="relative")
-    tasks = MetaWorldTaskSampler(ml1, 'train')
-    env = tasks.sample(1)[0]()
+    ml1 = metaworld.ML1(env_name, constraint_mode="relative", constraint_size=0.05)
+    constructor_args = {"constraint_mode": ml1.constraint_mode, "constraint_size":0.05}
+    constructor_args_test = {"constraint_mode": ml1.constraint_mode, "constraint_size":0.05}
+    tasks = MetaWorldTaskSampler(ml1, 'train', constructor_args=constructor_args)
+    env_cl = tasks.sample(1)[0]
+    env = env_cl()
     test_sampler = SetTaskSampler(
         MetaWorldSetTaskEnv,
-        env=MetaWorldSetTaskEnv(ml1, 'test'),
+        env=MetaWorldSetTaskEnv(ml1, 'test', constructor_args=constructor_args_test),
+        constructor_args={"constructor_args": constructor_args_test}
     )
     num_test_envs = 5
 
@@ -106,8 +124,22 @@ def constrained_maml_trpo_metaworld_ml1(ctxt, env_name, seed, epochs, rollouts_p
         constraint=True,
         constraint_threshold=0.001,
         lr_constraint=lr_lagrangian,
+        w_and_b=w_and_b,
     )
+    if w_and_b:
+        wandb.init(project="constrained-maml-ml1-pick-place",config={
+            "inner_rl": inner_lr,
+            "meta_batch_size": meta_batch_size,
+            "discount": 0.99,
+            "gae_lambda": 1,
+            "num_grad_updates": 1,
+            "policy_ent_coeff": 5e-5,
+            "rollouts_per_task": rollouts_per_task,
+            "lagrangian_init": lagrangian,
+            "lr_lagrangian": lr_lagrangian,
+            "environmen": "pick-place"
 
+        })
     trainer.setup(algo, env)
     trainer.train(n_epochs=epochs,
                   batch_size=rollouts_per_task * env.spec.max_episode_length)

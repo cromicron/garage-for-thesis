@@ -49,7 +49,9 @@ class MetaWorldSetTaskEnv(Environment):
                  kind=None,
                  wrapper=None,
                  add_env_onehot=False,
-                 render_mode=None):
+                 render_mode=None,
+                 constructor_args=None,
+                 ):
         self._constructed_from_benchmark = benchmark is not None
         if self._constructed_from_benchmark:
             assert kind is not None
@@ -71,6 +73,11 @@ class MetaWorldSetTaskEnv(Environment):
         self._next_task_index = 0
         self._task_indices = None
         self._render_mode = render_mode
+        if constructor_args is None:
+            self._constructor_args = {}
+        else:
+            self._constructor_args = constructor_args
+
         if self._benchmark is not None:
             self._fill_tasks()
             self.set_task(self._tasks_by_env[self._env_list[0]][0])
@@ -183,7 +190,10 @@ class MetaWorldSetTaskEnv(Environment):
         env_name = self._current_task.env_name
         env = self._envs.get(env_name, None)
         if env is None:
-            env = self._classes[env_name](render_mode=self._render_mode)
+            env = self._classes[env_name](
+                **self._constructor_args,
+
+            )
             env.set_task(self._current_task)
             env = envs.GymEnv(env, max_episode_length=env.max_path_length)
             env = envs.TaskNameWrapper(env, task_name=env_name)

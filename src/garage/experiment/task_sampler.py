@@ -132,10 +132,21 @@ class SetTaskSampler(TaskSampler):
 
     """
 
-    def __init__(self, env_constructor, *, env=None, wrapper=None):
+    def __init__(
+        self,
+        env_constructor,
+        *,
+        env=None,
+        wrapper=None,
+        constructor_args=None,
+    ):
         self._env_constructor = env_constructor
         self._env = env or env_constructor()
         self._wrapper = wrapper
+        if constructor_args is None:
+            self._constructor_args = {}
+        else:
+            self._constructor_args = constructor_args
 
     @property
     def n_tasks(self):
@@ -159,7 +170,12 @@ class SetTaskSampler(TaskSampler):
 
         """
         return [
-            SetTaskUpdate(self._env_constructor, task, self._wrapper)
+            SetTaskUpdate(
+                self._env_constructor,
+                task,
+                self._wrapper,
+                self._constructor_args
+            )
             for task in self._env.sample_tasks(n_tasks)
         ]
 
@@ -258,6 +274,8 @@ class MetaWorldTaskSampler(TaskSampler):
         add_env_onehot (bool): If true, a one-hot representing the current
             environment name will be added to the environments. Should only be
             used with multi-task benchmarks.
+        constructor_args (dict): optional keyword args to pass to env-
+            constructor
 
     Raises:
         ValueError: If kind is not 'train' or 'test'. Also raisd if
@@ -266,7 +284,14 @@ class MetaWorldTaskSampler(TaskSampler):
 
     """
 
-    def __init__(self, benchmark, kind, wrapper=None, add_env_onehot=False):
+    def __init__(
+        self,
+        benchmark,
+        kind,
+        wrapper=None,
+        add_env_onehot=False,
+        constructor_args=None
+    ):
         self._benchmark = benchmark
         self._kind = kind
         self._inner_wrapper = wrapper
@@ -305,6 +330,10 @@ class MetaWorldTaskSampler(TaskSampler):
         }
         self._next_order_index = 0
         self._shuffle_tasks()
+        if constructor_args is None:
+            self._constructor_args = {}
+        else:
+            self._constructor_args = constructor_args
 
     def modified_env_class_factory(self, original_class):
         def new_set_action_space(self):
@@ -390,7 +419,7 @@ class MetaWorldTaskSampler(TaskSampler):
             for _ in range(tasks_per_class):
                 task_index = self._task_orders[env_name][order_index]
                 task = self._task_map[env_name][task_index]
-                updates.append(SetTaskUpdate(env, task, wrap))
+                updates.append(SetTaskUpdate(env, task, wrap, self._constructor_args))
                 if with_replacement:
                     order_index = np.random.randint(0, MW_TASKS_PER_ENV)
                 else:

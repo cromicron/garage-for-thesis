@@ -14,7 +14,7 @@ from garage.torch import update_module_params
 from garage.torch._functions import zero_optim_grads
 from garage.torch.optimizers import (ConjugateGradientOptimizer,
                                      DifferentiableSGD)
-
+import wandb
 # yapf: enable
 
 
@@ -161,7 +161,8 @@ class MAML:
             cum_penalties = []
             for task in all_samples:
                 for rollout in task:
-                    const_violations.append(rollout.const_violations.sum().item())
+
+                    const_violations.append(rollout.const_violations.sum(axis=-1))
                     baselines_const_list.append(
                         rollout.baselines_const[rollout.valids.bool()])
                     cum_penalties.append(
@@ -170,12 +171,17 @@ class MAML:
             ev_const = explained_variance_1d(baselines_const, np.array(cum_penalties).flatten())
 
             self._optimizer_lagrangian.zero_grad()
-            lagrangian_loss = (
-                torch.tensor(const_violations) - \
-                              self._constraint_threshold*self.max_episode_length
-            ).mean()
+            avg_const_violation = torch.cat(const_violations).mean()
+
+            lagrangian_loss = -self.policy.lagrangian*(
+                avg_const_violation/self.max_episode_length -  self._constraint_threshold
+            )
             lagrangian_loss.backward()
             self._optimizer_lagrangian.step()
+            with torch.no_grad():
+                self.policy.lagrangian.data.clamp_(min=0)
+            if wandb.run:
+                wandb.log({"lambda": self.policy.lagrangian.item()}, step=wandb.run.step)
 
         with torch.no_grad():
             policy_entropy = self._compute_policy_entropy(
@@ -188,7 +194,7 @@ class MAML:
                 stddev.mean().item(), ev]
 
             if self._constraint:
-                to_log.extend([const_violations, ev_const])
+                to_log.extend([avg_const_violation, ev_const])
             average_return = self._log_performance(*to_log)
 
         if self._meta_evaluator and itr % self._evaluate_every_n_epochs == 0:
@@ -431,9 +437,9 @@ class MAML:
         if self._constraint:
             const_violations = torch.Tensor(np.stack(all_constraint_violations))
             self._value_function_const.fit(paths, y_label="penalties")
-            baselines_const = torch.Tensor(
+            baselines_const = torch.clamp(torch.Tensor(
                 [self._value_function_const.predict(path) for path in paths]
-            )
+            ), min=0)
             return _MAMLEpisodeBatchConstrained(paths, obs, actions, rewards, valids,
                                      baselines, const_violations, baselines_const)
         return _MAMLEpisodeBatch(paths, obs, actions, rewards, valids,

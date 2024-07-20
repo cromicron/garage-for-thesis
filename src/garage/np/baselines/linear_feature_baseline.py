@@ -58,15 +58,16 @@ class LinearFeatureBaseline(Baseline):
              np.ones((length, 1))], axis=1)
 
     # pylint: disable=unsubscriptable-object
-    def fit(self, paths):
+    def fit(self, paths, y_label="returns"):
         """Fit regressor based on paths.
 
         Args:
             paths (list[dict]): Sample paths.
+            y_label (str): name of the value to predict.
 
         """
         featmat = np.concatenate([self._features(path) for path in paths])
-        returns = np.concatenate([path['returns'] for path in paths])
+        returns = np.concatenate([path[y_label] for path in paths])
         reg_coeff = self._reg_coeff
         for _ in range(5):
             self._coeffs = np.linalg.lstsq(
