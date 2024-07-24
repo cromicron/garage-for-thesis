@@ -30,7 +30,7 @@ import wandb
 @click.option('--lr_lagrangian', default=3e-2, type=float)
 @click.option('--lagrangian', default=30.0, type=float)
 @click.option('--constraint_mode', default="relative", type=str)
-@click.option('--constraint_size', default=0.05, type=float)
+@click.option('--constraint_size', default=0.03, type=float)
 @click.option('--w_and_b', default=True, type=bool)
 @wrap_experiment(
     snapshot_mode='last',
