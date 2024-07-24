@@ -194,7 +194,7 @@ class MAML:
                 stddev.mean().item(), ev]
 
             if self._constraint:
-                to_log.extend([avg_const_violation, ev_const])
+                to_log.extend([avg_const_violation, ev_const, self.policy.lagrangian.item()])
             average_return = self._log_performance(*to_log)
 
         if self._meta_evaluator and itr % self._evaluate_every_n_epochs == 0:
@@ -457,7 +457,8 @@ class MAML:
         stddev,
         explained_variance,
         const_violations=None,
-        ev_const=None
+        ev_const=None,
+        lagrangian=None,
     ):
         """Evaluate performance of this batch.
 
@@ -473,6 +474,9 @@ class MAML:
             policy_entropy (float): Policy entropy.
             stddev (float): Policy stddev
             explained_variance (float): explained variance of baseline
+            const_violations (float): proportion of constraint-violations.
+            ev_const (float): explained variance of constraint-baseline
+            lagrangian (float): current lambda
 
         Returns:
             float: The average return in last epoch cycle.
@@ -506,8 +510,13 @@ class MAML:
             tabular.record('KLAfter', kl)
             tabular.record('Entropy', policy_entropy)
             tabular.record('StandardDeviation', stddev)
+            if lagrangian is not None:
+                tabular.record('lagrangian', lagrangian)
         tabular.record(f'{self._value_function.name}/ExplainedVariance',
                        explained_variance)
+        if ev_const is not None:
+            tabular.record(f'{self._value_function_const.name}/ExplainedVariance',
+                       ev_const)
 
         return np.mean(rtns)
 

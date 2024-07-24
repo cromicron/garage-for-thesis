@@ -309,7 +309,8 @@ def log_performance(itr, batch, discount, prefix='Evaluation', w_b=False):
         tabular.record('MaxReward', np.max(rewards))
         tabular.record('AverageDiscountedReturn', average_discounted_return)
         tabular.record('AverageReturn', np.mean(undiscounted_returns))
-        tabular.record('AverageReturnRaw', np.mean(raw_rewards))
+        if raw_rewards:
+            tabular.record('AverageReturnRaw', np.mean(raw_rewards))
         tabular.record('StdReturn', np.std(undiscounted_returns))
         tabular.record('MaxReturn', np.max(undiscounted_returns))
         tabular.record('MinReturn', np.min(undiscounted_returns))
@@ -341,7 +342,7 @@ def log_performance(itr, batch, discount, prefix='Evaluation', w_b=False):
             f"{tabular._prefix_str}{prefix}/AverageReturn": np.mean(undiscounted_returns),
             f"{tabular._prefix_str}{prefix}/SuccessRate": np.mean(success)
         }
-        if len(raw_rewards) > 0:
+        if raw_rewards:
             logs[f"{tabular._prefix_str}{prefix}/AverageReturnRaw"] = np.mean(
                 raw_rewards)
         if constraints:
