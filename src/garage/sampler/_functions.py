@@ -3,7 +3,7 @@ from garage import Environment
 from garage.sampler.env_update import EnvUpdate
 
 
-def _apply_env_update(old_env, env_update, render_mode=None):
+def _apply_env_update(old_env, env_update, **kwargs):
     """Use any non-None env_update as a new environment.
 
     A simple env update function. If env_update is not None, it should be
@@ -29,7 +29,7 @@ def _apply_env_update(old_env, env_update, render_mode=None):
     """
     if env_update is not None:
         if isinstance(env_update, EnvUpdate):
-            return env_update(old_env, render_mode), True
+            return env_update(old_env, **kwargs), True
         elif isinstance(env_update, Environment):
             if old_env is not None:
                 old_env.close()
