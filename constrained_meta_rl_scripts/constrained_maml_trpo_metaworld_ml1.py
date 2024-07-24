@@ -27,10 +27,17 @@ import wandb
 @click.option('--rollouts_per_task', type=int, default=10)
 @click.option('--meta_batch_size', type=int, default=25)
 @click.option('--inner_lr', default=1e-4, type=float)
-@click.option('--lr_lagrangian', default=5e-3, type=float)
+@click.option('--lr_lagrangian', default=3e-2, type=float)
 @click.option('--lagrangian', default=30.0, type=float)
+@click.option('--constraint_mode', default="relative", type=str)
+@click.option('--constraint_size', default=0.05, type=float)
 @click.option('--w_and_b', default=True, type=bool)
-@wrap_experiment(snapshot_mode='none', name_parameters='passed', archive_launch_repo = False)
+@wrap_experiment(
+    snapshot_mode='last',
+    name_parameters='passed',
+    archive_launch_repo = False,
+    use_existing_dir=True,
+)
 def constrained_maml_trpo_metaworld_ml1(
     ctxt,
     env_name,
@@ -39,8 +46,10 @@ def constrained_maml_trpo_metaworld_ml1(
     rollouts_per_task,
     meta_batch_size,
     inner_lr,
-    lagrangian,
     lr_lagrangian,
+    lagrangian,
+    constraint_mode,
+    constraint_size,
     w_and_b
 ):
     """Set up environment and algorithm and run the task.
@@ -65,16 +74,15 @@ def constrained_maml_trpo_metaworld_ml1(
     """
     set_seed(seed)
 
-    ml1 = metaworld.ML1(env_name, constraint_mode="relative", constraint_size=0.05)
-    constructor_args = {"constraint_mode": ml1.constraint_mode, "constraint_size":0.05}
-    constructor_args_test = {"constraint_mode": ml1.constraint_mode, "constraint_size":0.05}
+    ml1 = metaworld.ML1(env_name, constraint_mode=constraint_mode, constraint_size=constraint_size)
+    constructor_args = {"constraint_mode": ml1.constraint_mode, "constraint_size":ml1.constraint_size}
     tasks = MetaWorldTaskSampler(ml1, 'train', constructor_args=constructor_args)
     env_cl = tasks.sample(1)[0]
     env = env_cl()
     test_sampler = SetTaskSampler(
         MetaWorldSetTaskEnv,
-        env=MetaWorldSetTaskEnv(ml1, 'test', constructor_args=constructor_args_test),
-        constructor_args={"constructor_args": constructor_args_test}
+        env=MetaWorldSetTaskEnv(ml1, 'test', constructor_args=constructor_args),
+        constructor_args={"constructor_args": constructor_args}
     )
     num_test_envs = 5
 
@@ -91,12 +99,15 @@ def constrained_maml_trpo_metaworld_ml1(
     # In lagrangian methods, there are two separate advantages
     # thus two value functions necessary
     value_function = LinearFeatureBaseline(env_spec=env.spec)
-    value_function_const = LinearFeatureBaseline(env_spec=env.spec)
+    value_function_const = LinearFeatureBaseline(
+        env_spec=env.spec,
+        name="LinearFeatureBaselineConstraints")
 
     meta_evaluator = MetaEvaluator(test_task_sampler=test_sampler,
                                    n_exploration_eps=rollouts_per_task,
                                    n_test_tasks=num_test_envs * 2,
-                                   n_test_episodes=10)
+                                   n_test_episodes=10,
+                                   w_and_b=w_and_b)
 
     sampler = RaySampler(agents=policy,
                          envs=env,
@@ -127,7 +138,7 @@ def constrained_maml_trpo_metaworld_ml1(
         w_and_b=w_and_b,
     )
     if w_and_b:
-        wandb.init(project="constrained-maml-ml1-pick-place",config={
+        wandb.init(project=f"constrained-maml-ml1-{env_name}",config={
             "inner_rl": inner_lr,
             "meta_batch_size": meta_batch_size,
             "discount": 0.99,
@@ -137,7 +148,10 @@ def constrained_maml_trpo_metaworld_ml1(
             "rollouts_per_task": rollouts_per_task,
             "lagrangian_init": lagrangian,
             "lr_lagrangian": lr_lagrangian,
-            "environmen": "pick-place"
+            "constraint_mode": constraint_mode,
+            "constraint_size": constraint_size,
+            "constraint_threshold": 0.001,
+            "environment": "pick-place",
 
         })
     trainer.setup(algo, env)
