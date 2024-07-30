@@ -95,9 +95,10 @@ def constrained_maml_trpo_metaworld_ml1(
                                min_std=0.5,
                                max_std=1.5,
                                std_mlp_type='share_mean_std')
-    policy.register_parameter(
-        "lagrangian",
-        torch.nn.Parameter(torch.tensor(lagrangian)))
+    if lagrangian is not None:
+        policy.register_parameter(
+            "lagrangian",
+            torch.nn.Parameter(torch.tensor(lagrangian)))
     # In lagrangian methods, there are two separate advantages
     # thus two value functions necessary
     value_function = LinearFeatureBaseline(env_spec=env.spec)
