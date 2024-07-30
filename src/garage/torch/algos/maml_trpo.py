@@ -46,7 +46,13 @@ class MAMLTRPO(MAML):
         meta_evaluator (garage.experiment.MetaEvaluator): A meta evaluator for
             meta-testing. If None, don't do meta-testing.
         evaluate_every_n_epochs (int): Do meta-testing every this epochs.
-
+        w_and_b (bool): Whether to log to weights and biases.
+        constraint (bool): Whether environment contains constraint.
+        train_constraint (bool): Whether model should train to minimize
+            constraint.
+        constraint_threshold (float): How much constraint violation is
+            tolerated without penalty
+        lr_constraint (float): Learning rate of optimizer for lagrangian.
     """
 
     def __init__(self,
@@ -73,9 +79,14 @@ class MAMLTRPO(MAML):
                  evaluate_every_n_epochs=1,
                  w_and_b=False,
                  constraint=False,
+                 train_constraint=None,
                  constraint_threshold=None,
                  lr_constraint=None
                  ):
+        if constraint and (train_constraint is None):
+            train_constraint = True
+        if train_constraint:
+            assert constraint, "specify constraint variables!"
         if constraint:
             assert value_function_const is not None, \
                 "specify a value function for constraints"
@@ -98,7 +109,8 @@ class MAMLTRPO(MAML):
                          use_softplus_entropy=use_softplus_entropy,
                          stop_entropy_gradient=stop_entropy_gradient,
                          entropy_method=entropy_method,
-                         constraint=constraint
+                         constraint=constraint,
+                         train_constraint=train_constraint,
                          )
 
         meta_optimizer = (ConjugateGradientOptimizer,
@@ -118,6 +130,7 @@ class MAMLTRPO(MAML):
                          evaluate_every_n_epochs=evaluate_every_n_epochs,
                          w_and_b=w_and_b,
                          constraint=constraint,
+                         train_constraint=train_constraint,
                          lr_constraint=lr_constraint,
                          constraint_threshold=constraint_threshold,
                          )

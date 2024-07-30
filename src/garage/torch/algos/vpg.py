@@ -73,12 +73,19 @@ class VPG(RLAlgorithm):
         stop_entropy_gradient=False,
         entropy_method='no_entropy',
         constraint=False,
+        train_constraint=None,
     ):
         self._discount = discount
         self.policy = policy
         self.max_episode_length = env_spec.max_episode_length
         self._value_function = value_function
         self._constraint = constraint
+
+        if train_constraint is None and constraint:
+            self._train_constraint = True
+        else:
+            self._train_constraint = train_constraint
+
         if constraint:
             assert value_function_const is not None, \
                 "no value function for constraint specified"
@@ -335,7 +342,7 @@ class VPG(RLAlgorithm):
         actions_flat = torch.cat(filter_valids(actions, valids))
         rewards_flat = torch.cat(filter_valids(rewards, valids))
         advantages_flat = self._compute_advantage(rewards, valids, baselines)
-        if self._constraint:
+        if self._train_constraint:
             advantages_flat_const = self._compute_advantage(
                 penalties, valids, baselines_constraint
             )
