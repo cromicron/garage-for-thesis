@@ -66,7 +66,7 @@ def main(ctxt, env_name, seed, epochs, rollouts_per_task, meta_batch_size, inner
                          max_episode_length=env.spec.max_episode_length,
                          n_workers=meta_batch_size)
 
-    trainer = Trainer()
+    trainer = Trainer(ctxt)
     algo = MAMLTRPO(
         env=env,
         policy=policy,
