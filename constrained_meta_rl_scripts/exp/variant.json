@@ -1,0 +1,14 @@
+{
+  "env_name": "pick-place-v2",
+  "seed": 1,
+  "epochs": 2000,
+  "rollouts_per_task": 10,
+  "meta_batch_size": 25,
+  "inner_lr": 0.0001,
+  "train_constraint": true,
+  "lr_lagrangian": 0.5,
+  "lagrangian": 1.0,
+  "constraint_mode": "relative",
+  "constraint_size": 0.03,
+  "w_and_b": true
+}

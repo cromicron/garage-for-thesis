@@ -176,7 +176,14 @@ def obtain_evaluation_episodes(policy,
     return EpisodeBatch.from_list(env.spec, episodes)
 
 
-def log_multitask_performance(itr, batch, discount, name_map=None, w_b=False):
+def log_multitask_performance(
+    itr,
+    batch,
+    discount,
+    name_map=None,
+    w_b=False,
+    super_prefix="",
+):
     r"""Log performance of episodes from multiple tasks.
 
     Args:
@@ -190,7 +197,10 @@ def log_multitask_performance(itr, batch, discount, name_map=None, w_b=False):
             names. Optional if the "task_name" environment info is present.
             Note that if provided, all tasks listed in this map will be logged,
             even if there are no episodes present for them.
-        w_b (bool): Whether to log to w&b
+        w_b (bool): Whether to log to w&b.
+        super_prefix (str): if mutliple sets of multitask performances,
+            how to prefix it. For instance in MAML, pre and post
+            adatpation.
 
     Returns:
         numpy.ndarray: Undiscounted returns averaged across all tasks. Has
@@ -217,7 +227,7 @@ def log_multitask_performance(itr, batch, discount, name_map=None, w_b=False):
             log_performance(itr,
                             EpisodeBatch.concatenate(*episodes),
                             discount,
-                            prefix=task_name,
+                            prefix=super_prefix+task_name,
                             w_b=w_b,
                             )
         else:
@@ -236,7 +246,7 @@ def log_multitask_performance(itr, batch, discount, name_map=None, w_b=False):
         itr,
         batch,
         discount=discount,
-        prefix='Average',
+        prefix=f"{super_prefix}Average",
         w_b=w_b
     )
 

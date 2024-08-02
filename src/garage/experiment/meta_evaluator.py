@@ -50,6 +50,7 @@ class MetaEvaluator:
                  start_eval_itr = 0,
                  w_and_b=False,
                  render_examples=False,
+                 pre_post_prefixes=None,
                  ):
         self._test_task_sampler = test_task_sampler
         self._worker_class = worker_class
@@ -68,7 +69,10 @@ class MetaEvaluator:
         self._test_sampler = None
         self._max_episode_length = None
         self._w_and_b = w_and_b
-
+        self._render_examples = render_examples
+        self._pre_post_prefixes = pre_post_prefixes
+        if pre_post_prefixes is not None:
+            assert len(pre_post_prefixes) == 2, "specify two prefixes"
     def evaluate(self, algo, test_episodes_per_task=None, itr_multiplier=1):
         """Evaluate the Meta-RL algorithm on the test tasks.
 
@@ -93,6 +97,7 @@ class MetaEvaluator:
                               worker_args=self._worker_args),
                 agents=algo.get_exploration_policy(),
                 envs=env)
+        exploration_episodes = []
         for env_up in env_updates:
             policy = algo.get_exploration_policy()
             eps = EpisodeBatch.concatenate(*[
@@ -100,6 +105,8 @@ class MetaEvaluator:
                                                   env_up)
                 for _ in range(self._n_exploration_eps)
             ])
+            if self._pre_post_prefixes is not None:
+                exploration_episodes.append(eps)
             adapted_policy = algo.adapt_policy(policy, eps)
             adapted_eps = self._test_sampler.obtain_samples(
                 self._eval_itr,
@@ -114,11 +121,23 @@ class MetaEvaluator:
             name_map = None
 
         with tabular.prefix(self._prefix + '/' if self._prefix else ''):
+            if self._pre_post_prefixes is not None:
+                suffix_pre = self._pre_post_prefixes[0]
+                suffix_post = self._pre_post_prefixes[1]
+                log_multitask_performance(
+                    self._eval_itr * itr_multiplier,
+                    EpisodeBatch.concatenate(*exploration_episodes),
+                    getattr(algo, 'discount', 1.0),
+                    name_map=name_map,
+                    w_b=self._w_and_b,
+                    super_prefix=suffix_pre,
+                )
             log_multitask_performance(
                 self._eval_itr * itr_multiplier,
                 EpisodeBatch.concatenate(*adapted_episodes),
                 getattr(algo, 'discount', 1.0),
                 name_map=name_map,
-                w_b=self._w_and_b
+                w_b=self._w_and_b,
+                super_prefix=suffix_post,
             )
         self._eval_itr += 1

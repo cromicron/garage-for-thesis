@@ -159,18 +159,22 @@ class MAML:
 
         if self._constraint:
             baselines_const_list = []
-            const_violations = []
+            const_violations_pre = []
+            const_violations_post = []
             cum_penalties = []
             for task in all_samples:
-                for rollout in task:
-
-                    const_violations.append(rollout.const_violations.sum(axis=-1))
+                for i in range(len(task)):
+                    if i < self._num_grad_updates:
+                        const_violations_pre.append(rollout.const_violations.sum(axis=-1))
+                    else:
+                        const_violations_post.append(rollout.const_violations.sum(axis=-1))
                     if self._train_constraint:
                         baselines_const_list.append(
                             rollout.baselines_const[rollout.valids.bool()])
                     cum_penalties.append(
                         [r['penalties'] for r in rollout.paths])
-            avg_const_violation = torch.cat(const_violations).mean()
+            avg_const_violation_pre = torch.cat(const_violations_pre).mean()
+            avg_const_violation_post = torch.cat(const_violations_post).mean()
             if self._train_constraint:
                 baselines_const = torch.cat(
                     baselines_const_list).numpy().flatten()
@@ -178,9 +182,12 @@ class MAML:
                     cum_penalties).flatten())
                 self._optimizer_lagrangian.zero_grad()
 
-
+                # After adaptation, violating constraints should be penalized
+                # more than before.
+                penalty_pre = 0.5*(avg_const_violation_pre/self.max_episode_length -  self._constraint_threshold)
+                penalty_post = 0.5*(avg_const_violation_post / self.max_episode_length - self._constraint_threshold)
                 lagrangian_loss = -self.policy.lagrangian*(
-                    avg_const_violation/self.max_episode_length -  self._constraint_threshold
+                    penalty_pre + penalty_post
                 )
                 lagrangian_loss.backward()
                 self._optimizer_lagrangian.step()
@@ -199,10 +206,9 @@ class MAML:
                 policy_entropy.mean().item(),
                 stddev.mean().item(), ev]
 
-            if self._constraint:
-                to_log.append(avg_const_violation)
-                if self._train_constraint:
-                    to_log.extend([ev_const, self.policy.lagrangian.item()])
+
+            if self._train_constraint:
+                to_log.extend([ev_const, self.policy.lagrangian.item()])
             average_return = self._log_performance(*to_log)
 
         if self._meta_evaluator and itr % self._evaluate_every_n_epochs == 0:
@@ -445,8 +451,9 @@ class MAML:
         if self._constraint:
 
             const_violations = torch.Tensor(np.stack(all_constraint_violations))
-            self._value_function_const.fit(paths, y_label="penalties")
+
             if self._train_constraint:
+                self._value_function_const.fit(paths, y_label="penalties")
                 baselines_const = torch.clamp(torch.Tensor(
                     [self._value_function_const.predict(path) for path in paths]
                 ), min=0)
@@ -468,7 +475,6 @@ class MAML:
         policy_entropy,
         stddev,
         explained_variance,
-        const_violations=None,
         ev_const=None,
         lagrangian=None,
     ):
@@ -512,7 +518,22 @@ class MAML:
             discount=self._inner_algo.discount,
             name_map=name_map,
             w_b=self._w_and_b,
+            super_prefix="post_adaptation/"
         )
+        log_multitask_performance(
+            itr,
+            EpisodeBatch.from_list(
+                env_spec=self._env.spec,
+                paths=[
+                    path for task_paths in all_samples
+                    for path in task_paths[self._num_grad_updates-1].paths
+                ]),
+            discount=self._inner_algo.discount,
+            name_map=name_map,
+            w_b=self._w_and_b,
+            super_prefix="pre_adaptation/"
+        )
+
 
         with tabular.prefix(self._policy.name + '/'):
             tabular.record('LossBefore', loss_before)
