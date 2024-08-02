@@ -86,7 +86,7 @@ class VPG(RLAlgorithm):
         else:
             self._train_constraint = train_constraint
 
-        if constraint:
+        if self._train_constraint:
             assert value_function_const is not None, \
                 "no value function for constraint specified"
         self._value_function_const = value_function_const

@@ -87,7 +87,6 @@ class MAMLTRPO(MAML):
             train_constraint = True
         if train_constraint:
             assert constraint, "specify constraint variables!"
-        if constraint:
             assert value_function_const is not None, \
                 "specify a value function for constraints"
         policy_optimizer = OptimizerWrapper(
