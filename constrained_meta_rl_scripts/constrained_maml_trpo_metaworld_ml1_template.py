@@ -19,9 +19,9 @@ import wandb
 
 @wrap_experiment(
     snapshot_mode='last',
-    name_parameters='passed',
     archive_launch_repo = False,
     use_existing_dir=True,
+    name="maml_ml1",
 )
 def main(ctxt, env_name, seed, epochs, rollouts_per_task, meta_batch_size, inner_lr,
          train_constraint, lr_lagrangian, lagrangian, constraint_mode, constraint_size, w_and_b):
@@ -109,7 +109,7 @@ def main(ctxt, env_name, seed, epochs, rollouts_per_task, meta_batch_size, inner
         w_and_b=w_and_b,
     )
     if w_and_b:
-        wandb.init(project=f"constrained-maml-ml1-{env_name}", config={
+        wandb.init(project=f"test_constrained-maml-ml1-{env_name}", config={
             "inner_rl": inner_lr,
             "meta_batch_size": meta_batch_size,
             "discount": 0.99,
@@ -148,9 +148,13 @@ if __name__ == "__main__":
     parser.add_argument('--w_and_b', dest= 'w_and_b', action='store_true')
     parser.add_argument('--no_w_and_b', dest='w_and_b', action='store_false')
     parser.set_defaults(w_and_b=True)
-    args = parser.parse_args()
-
-    main(**vars(args))
+    kwargs = parser.parse_args()
+    env_name = kwargs.env_name
+    constraint_mode = kwargs.constraint_mode
+    train_constraint = kwargs.train_constraint
+    experiment_name = f"maml_{env_name}_{constraint_mode}_train_constraint={train_constraint}"
+    experiment_overrides = {"name": experiment_name}
+    main(experiment_overrides, **vars(kwargs))
 
 
 
