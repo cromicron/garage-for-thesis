@@ -109,7 +109,7 @@ def main(ctxt, env_name, seed, epochs, rollouts_per_task, meta_batch_size, inner
         w_and_b=w_and_b,
     )
     if w_and_b:
-        wandb.init(project=f"test_constrained-maml-ml1-{env_name}", config={
+        wandb.init(project=f"constrained-maml-ml1-{env_name}", config={
             "inner_rl": inner_lr,
             "meta_batch_size": meta_batch_size,
             "discount": 0.99,
