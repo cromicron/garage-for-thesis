@@ -195,7 +195,7 @@ class MAML:
                     self.policy.lagrangian.data.clamp_(min=0)
                 if wandb.run:
                     wandb.log({"lambda": self.policy.lagrangian.item()}, step=wandb.run.step)
-
+                torch.save(self._optimizer_lagrangian.state_dict(), 'lag_optimizer_state.pth')
         with torch.no_grad():
             policy_entropy = self._compute_policy_entropy(
                 [task_samples[0] for task_samples in all_samples])
