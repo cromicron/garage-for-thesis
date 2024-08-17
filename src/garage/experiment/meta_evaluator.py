@@ -100,6 +100,7 @@ class MetaEvaluator:
         exploration_episodes = []
         for env_up in env_updates:
             policy = algo.get_exploration_policy()
+            print("collecting episodes to adapt")
             eps = EpisodeBatch.concatenate(*[
                 self._test_sampler.obtain_samples(self._eval_itr, 1, policy,
                                                   env_up)
@@ -108,6 +109,7 @@ class MetaEvaluator:
             if self._pre_post_prefixes is not None:
                 exploration_episodes.append(eps)
             adapted_policy = algo.adapt_policy(policy, eps)
+            print("solving env with adapted policy")
             adapted_eps = self._test_sampler.obtain_samples(
                 self._eval_itr,
                 test_episodes_per_task * self._max_episode_length,

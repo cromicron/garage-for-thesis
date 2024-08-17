@@ -15,6 +15,7 @@ from garage import (EnvSpec, EnvStep, EpisodeBatch, log_multitask_performance,
 from garage.np.algos import MetaRLAlgorithm
 from garage.sampler import DefaultWorker
 from garage.torch.algos._rl2npo import RL2NPO
+import wandb
 device = "cuda" if torch.cuda.is_available() else "cpu"
 # yapf: enable
 
@@ -340,13 +341,21 @@ class RL2(MetaRLAlgorithm, abc.ABC):
         w_and_b=False,
         render_every_i=None,
         run_in_episodes=0,
+        constraint=False,
+        train_constraint=None,
+        constraint_threshold=None,
+        lr_constraint=None,
         **inner_algo_args
     ):
         self._env_spec = env_spec
         _inner_env_spec = EnvSpec(
             env_spec.observation_space, env_spec.action_space,
             episodes_per_trial * env_spec.max_episode_length)
-        self._inner_algo = RL2NPO(env_spec=_inner_env_spec, **inner_algo_args)
+        self._inner_algo = RL2NPO(
+            env_spec=_inner_env_spec,
+            train_constraint=train_constraint,
+            **inner_algo_args
+        )
         self._rl2_max_episode_length = self._env_spec.max_episode_length
         self._n_epochs_per_eval = n_epochs_per_eval
         self._policy = self._inner_algo.policy
@@ -358,7 +367,17 @@ class RL2(MetaRLAlgorithm, abc.ABC):
         self._save_weights = save_weights
         self._w_and_b = w_and_b
         self._render_every_i = render_every_i
-        self._run_in_episodes = run_in_episodes
+        self.run_in_episodes = run_in_episodes
+        if constraint and (train_constraint is None):
+            train_constraint = True
+        self._constraint = constraint
+        if constraint and train_constraint:
+            self._optimizer_lagrangian = torch.optim.Adam(
+                [self.policy.lagrangian], lr=lr_constraint)
+            self._constraint_threshold = constraint_threshold
+        self._train_constraint = train_constraint
+
+
 
     def train(self, trainer):
         """Obtain samplers and start actual training for each epoch.
@@ -374,7 +393,8 @@ class RL2(MetaRLAlgorithm, abc.ABC):
 
         """
         last_return = None
-        for r in range(self._run_in_episodes):
+        for r in range(self.run_in_episodes):
+            logger.log("stepping through env, to get normalization values")
             if self._meta_evaluator.__class__.__name__ == "RL2MetaEvaluator":
                 trainer.obtain_episodes(
                     trainer.step_itr,
@@ -451,6 +471,25 @@ class RL2(MetaRLAlgorithm, abc.ABC):
         logger.log('Optimizing policy...')
         self._policy.to(dtype=torch.float64)
         self._inner_algo.optimize_policy(episodes, save_weights=self._save_weights)
+
+        if self._train_constraint:
+            self._optimizer_lagrangian.zero_grad()
+
+            lagrangian_loss = -self.policy.lagrangian * (
+                episodes.env_infos[
+                    "constraint"].mean() - self._constraint_threshold
+            )
+            lagrangian_loss.backward()
+            self._optimizer_lagrangian.step()
+            with torch.no_grad():
+                self.policy.lagrangian.data.clamp_(min=0)
+            logger.log(f'Lagrangian Loss {lagrangian_loss}')
+            logger.log(f'New Lagrangian {self.policy.lagrangian.item()}')
+            if wandb.run:
+                wandb.log({"lambda": self.policy.lagrangian.item()}, step=wandb.run.step)
+            if self._save_weights:
+                self.policy.save_weights()
+
         if device == "cuda":
             self._policy.to("cpu")
         self._policy.to(dtype=torch.float32)
@@ -543,7 +582,7 @@ class RL2(MetaRLAlgorithm, abc.ABC):
                 env._env.all_task_names[0] for env in self._task_sampler._envs
             ]
             name_map = dict(enumerate(names))
-
+        """
         undiscounted_returns = log_multitask_performance(
             itr,
             episodes,
@@ -551,7 +590,30 @@ class RL2(MetaRLAlgorithm, abc.ABC):
             name_map=name_map,
             w_b=self._w_and_b
         )
-
+        """
+        first_episodes = []
+        adapted_episodes = []
+        for task in paths_by_task.values():
+            first_episodes.append(task[0])
+            adapted_episodes.extend(task[1: ])
+        pre_adapt_episodes = EpisodeBatch.concatenate(*first_episodes)
+        post_adapt_episodes = EpisodeBatch.concatenate(*adapted_episodes)
+        log_multitask_performance(
+            itr,
+            pre_adapt_episodes,
+            self._inner_algo._discount,
+            name_map=name_map,
+            w_b=self._w_and_b,
+            super_prefix="pre_adaptation/"
+        )
+        undiscounted_returns = log_multitask_performance(
+            itr,
+            post_adapt_episodes,
+            self._inner_algo._discount,
+            name_map=name_map,
+            w_b=self._w_and_b,
+            super_prefix="post_adaptation/"
+        )
         average_return = np.mean(undiscounted_returns)
 
         return concatenated_episodes, average_return

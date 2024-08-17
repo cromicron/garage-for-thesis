@@ -108,7 +108,7 @@ class GaussianGRUPolicy(Policy):
         output_nonlinearity=None,
         state_include_action=True,
         load_weights=False,
-        constraints=0,
+        is_actor_critic=False,
         weights_dir=None,
     ):
         super().__init__(env_spec=env_spec, name=name)
@@ -182,6 +182,13 @@ class GaussianGRUPolicy(Policy):
             device=device, dtype=dtype)
         self._prev_hiddens[:, do_resets_torch] = self._init_hidden.to(
             device=device, dtype=dtype)
+
+    def to(self, *args, **kwargs):
+        super().to(*args, **kwargs)
+        if isinstance(self._prev_hiddens, torch.Tensor):
+            self._prev_hiddens = self._prev_hiddens.to(*args, **kwargs)
+        if isinstance(self._init_hidden, torch.Tensor):
+            self._init_hidden = self._init_hidden.to(*args, **kwargs)
 
     def forward(self, inputs):
         return self._module.forward(inputs,  self._prev_hiddens)

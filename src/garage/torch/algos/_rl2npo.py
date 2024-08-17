@@ -71,19 +71,33 @@ class RL2NPO(NPO):
         """
         # Baseline predictions with all zeros for feeding inputs of Tensorflow
         baselines = np.zeros((len(episodes.lengths), max(episodes.lengths)))
-        if not self.policy.is_actor_critic:
+        if not getattr(self.policy, 'is_actor_critic', False):
             # if actor critic, actor and critic share loss and opt
-            self._fit_baseline_with_data(episodes, baselines)
+            returns = self._fit_baseline_with_data(episodes, baselines)
 
         with torch.no_grad():
             baselines = self._get_baseline_prediction(episodes)
-
+        ev = explained_variance_1d(
+            baselines.cpu().numpy().flatten(),
+            returns.flatten(),
+            episodes.valids.flatten()
+        )
         policy_opt_input_values = self._policy_opt_input_values(
             episodes, baselines)
-        if self._lagrangian:
-            _, penalties = self._fit_baseline_const(episodes)
+        if self._train_constraint:
+            cum_penalties, penalties = self._fit_baseline_const(episodes)
             with torch.no_grad():
                 baselines_const = self._get_baseline_prediction_const(episodes)
+
+                ev_const = explained_variance_1d(
+                    baselines_const.cpu().numpy().flatten(),
+                    cum_penalties.flatten(),
+                    episodes.valids.flatten()
+                )
+
+                tabular.record("const_baseline/ExplainedVariance",
+                               ev_const)
+
             policy_opt_input_values.extend([penalties, baselines_const])
         inputs = [torch.tensor(i, dtype=torch.float64, device=device) for i in policy_opt_input_values]
         # Train policy network
@@ -107,29 +121,24 @@ class RL2NPO(NPO):
         tabular.record('{}/KLBefore'.format(self.policy.name),
                        policy_kl_before)
         tabular.record('{}/KL'.format(self.policy.name), policy_kl)
+        tabular.record(f'{self._baseline.name}/ExplainedVariance',
+                       ev)
         self._old_policy.load_parameters(self.policy.get_parameters())
         self.policy.reset()
         self._old_policy.reset()
-        if self._lagrangian:
-            total_penalties = penalties.sum(axis=1)
-            lagrangian_loss = total_penalties.mean()-self._constraint_threshold*self.max_episode_length
-            self._lagrangian = max(
-                0, self._lagrangian + self._lagrangian_lr*lagrangian_loss
-            )
-            logger.log(f'Lagrangian Loss {lagrangian_loss}')
-            logger.log(f'New Lagrangian {self._lagrangian}')
-            if wandb.run:
-                wandb.log({"lambda": self._lagrangian}, step=wandb.run.step)
 
         if save_weights:
             self.policy.save_weights()
-            self._optimizer.save_optimizer_state()
-            if not self.policy.is_actor_critic:
-                self._baseline.save_weights()
-                self._bl_optimizer.save_optimizer_state()
-            if self._lagrangian:
-                self._baseline_const.save_weights()
-                self._bl_optimizer_const.save_optimizer_state()
+        self._optimizer.save_optimizer_state()
+        if not getattr(self.policy, "is_actor_critic", False):
+            self._baseline.save_weights()
+            self._bl_optimizer.save_optimizer_state()
+        if self._train_constraint and isinstance(
+            self._baseline_const, torch.nn.Module
+        ):
+            self._baseline_const.save_weights()
+
+
 
 
 
@@ -144,7 +153,7 @@ class RL2NPO(NPO):
                 :math:`(N, max_episode_length * episode_per_task)`.
 
         """
-        if self.policy.is_actor_critic:
+        if getattr(self.policy,"is_actor_critic", False):
             obs_tensor = torch.stack([
                 torch.tensor(np_array, dtype=torch.double, device=device) for np_array in episodes.observations_list
             ], dim=0)
@@ -173,12 +182,20 @@ class RL2NPO(NPO):
                 :math:`(N, max_episode_length * episode_per_task)`.
 
         """
-        obs = [
-            self._baseline_const.forward(torch.tensor(
+        if isinstance(self._baseline_const, torch.nn.Module):
+            obs = [
+            self._baseline_const.predict(torch.tensor(
                 obs,
                 dtype=torch.float32,
                 device=device)).squeeze()
             for obs in episodes.observations_list
-        ]
+            ]
+        else:
+            obs = [torch.tensor(
+                np.maximum(self._baseline_const.predict({"observations": obs}),0),
+                dtype=torch.float32,
+                device=device) for obs in episodes.observations_list
+                   ]
+
         return pad_batch_array(torch.cat(obs, dim=0), episodes.lengths,
                                self.max_episode_length)

@@ -87,7 +87,6 @@ class NPO(RLAlgorithm):
                  sampler,
                  lagrangian_start=None,
                  constraint_threshold=0,
-                 lagrangian_lr=0.01,
                  baseline_const=None,
                  scope=None,
                  discount=0.99,
@@ -111,6 +110,7 @@ class NPO(RLAlgorithm):
                  num_tasks=None,
                  task_update_frequency=1,
                  train_task_sampler=None,
+                 train_constraint=False,
                  ):
         self._task_update_frequency = task_update_frequency
         self._multitask = multitask
@@ -123,9 +123,7 @@ class NPO(RLAlgorithm):
         self._env_spec = env_spec
         self._baseline = baseline
         self._lagrangian_start=lagrangian_start
-        self._lagrangian=lagrangian_start
         self._constraint_threshold=constraint_threshold
-        self._lagrangian_lr=lagrangian_lr
         self._baseline_const = baseline_const
         self._discount = discount
         self._gae_lambda = gae_lambda
@@ -165,16 +163,7 @@ class NPO(RLAlgorithm):
         if self._baseline is not None:
             self._bl_optimizer = make_optimizer(optimizer, **optimizer_args_baseline)
             self._bl_optimizer.update_opt(self._baseline.compute_loss)
-        if baseline_const:
-            optimizer_args_bl_const = copy.deepcopy(optimizer_args_baseline)
-            optimizer_args_bl_const["model"] = self._baseline_const
-            optimizer_args_bl_const["name"] = "value_constraint"
-            optimizer_args_bl_const[
-                "load_state"] = self._baseline_const.load_weights_from_disc
-            self._bl_optimizer_const = make_optimizer(
-                optimizer, **optimizer_args_bl_const
-            )
-            self._bl_optimizer_const.update_opt(self._baseline_const.compute_loss)
+
         self._lr_clip_range = float(lr_clip_range)
         self._max_kl_step = float(max_kl_step)
         self._policy_ent_coeff = float(policy_ent_coeff)
@@ -191,6 +180,19 @@ class NPO(RLAlgorithm):
 
         self._sampler = sampler
         # send policy to cpu for collecting episodes
+        self._train_constraint = train_constraint
+        if train_constraint:
+            if baseline_const and isinstance(baseline_const, torch.nn.Module):
+                optimizer_args_bl_const = copy.deepcopy(optimizer_args_baseline)
+                optimizer_args_bl_const["model"] = self._baseline_const
+                optimizer_args_bl_const["name"] = "value_constraint"
+                optimizer_args_bl_const[
+                    "load_state"] = self._baseline_const.load_weights_from_disc
+                self._bl_optimizer_const = make_optimizer(
+                    optimizer, **optimizer_args_bl_const
+                )
+                self._bl_optimizer_const.update_opt(self._baseline_const.compute_loss)
+
         self.policy.to("cpu")
 
     def train(self, trainer):
@@ -392,7 +394,7 @@ class NPO(RLAlgorithm):
             do_resets= np.full(shape=batch_size, fill_value=True),
             dtype=torch.float64
         )
-        if self.policy.is_actor_critic:
+        if getattr(self.policy, "is_actor_critic", False):
             # calculate temporal difference loss
             dist, _, value_pred = self.policy.forward(states, get_value=True)
             # bootstrap last pred to be same as previous pred
@@ -417,15 +419,16 @@ class NPO(RLAlgorithm):
 
         adv = torch.reshape(adv, (-1, self.max_episode_length))
 
-        if self._lagrangian:
+        if self._train_constraint:
+            lagrangian = torch.detach(self.policy.lagrangian).item()
             adv_const = compute_advantages(self._discount,
                                  self._gae_lambda,
                                  self.max_episode_length,
                                  baselines_const,
                                  penalties,
                                  ).to(dtype=torch.float64)
-            adv -=  self._lagrangian * adv_const
-            adv /= (1 + self._lagrangian)
+            adv -=  lagrangian * adv_const
+            adv /= (1 + lagrangian)
         # Optionally normalize advantages
         eps = 1e-8
 
@@ -479,7 +482,7 @@ class NPO(RLAlgorithm):
         # Maximize E[surrogate objective] by minimizing
         # -E_t[surrogate objective]
         loss = -obj.mean()
-        if self.policy.is_actor_critic:
+        if getattr(self.policy, "is_actor_critic", False):
             loss += critic_loss
         return loss, pol_mean_kl
 
@@ -615,53 +618,59 @@ class NPO(RLAlgorithm):
             paths.append(dict(observations=obs, returns=returns))
 
         # Fit baseline
-        zero_optim_grads(self._bl_optimizer_const.optimizer)
+
         logger.log('Fitting constraint baseline...')
         xs = np.concatenate([p['observations'] for p in paths])
         if not isinstance(xs, np.ndarray) or len(xs.shape) > 2:
             xs = self._env_spec.observation_space.flatten_n(xs)
         ys = np.concatenate([p['returns'] for p in paths])
         ys = ys.reshape((-1, 1))
-        if self._baseline_const.normalize_inputs:
-            self._baseline_const.x_mean = torch.tensor(
-                np.mean(xs, axis=0, keepdims=True),
+
+        # If baseline is a torch Module
+        if isinstance(self._baseline_const, torch.nn.Module):
+            zero_optim_grads(self._bl_optimizer_const.optimizer)
+            if self._baseline_const.normalize_inputs:
+                self._baseline_const.x_mean = torch.tensor(
+                    np.mean(xs, axis=0, keepdims=True),
+                    dtype=torch.float64,
+                    device=device,
+                )
+                self._baseline_const.x_std = torch.tensor(
+                    np.std(xs, axis=0, keepdims=True) + 1e-8,
+                    dtype=torch.float64,
+                    device=device,
+                )
+            if self._baseline_const.normalize_outputs:
+                # recompute normalizing constants for outputs
+                self._baseline_const.y_mean = torch.tensor(
+                    np.mean(ys, axis=0, keepdims=True),
+                    dtype=torch.float64,
+                    device=device,
+                )
+                self._baseline_const.y_std = torch.tensor(
+                    np.std(ys, axis=0, keepdims=True) + 1e-8,
+                    dtype=torch.float64,
+                    device=device,
+                )
+            x_tensor =  torch.tensor(
+                xs,
                 dtype=torch.float64,
-                device=device,
-            )
-            self._baseline_const.x_std = torch.tensor(
-                np.std(xs, axis=0, keepdims=True) + 1e-8,
-                dtype=torch.float64,
-                device=device,
-            )
-        if self._baseline_const.normalize_outputs:
-            # recompute normalizing constants for outputs
-            self._baseline_const.y_mean = torch.tensor(
-                np.mean(ys, axis=0, keepdims=True),
-                dtype=torch.float64,
-                device=device,
-            )
-            self._baseline_const.y_std = torch.tensor(
-                np.std(ys, axis=0, keepdims=True) + 1e-8,
-                dtype=torch.float64,
-                device=device,
-            )
-        x_tensor =  torch.tensor(
-            xs,
-            dtype=torch.float64,
-            device=device
-            )
-        y_tensor = torch.tensor(ys, dtype=torch.float64, device=device)
-        with torch.no_grad():
-            loss_before = self._baseline_const.compute_loss(
-            x_tensor, y_tensor
-        )
-        tabular.record('{}/LossBefore'.format("BaselineConstraint"), loss_before)
-        self._bl_optimizer_const.optimize(x_tensor, y_tensor)
-        with torch.no_grad():
-            loss_after = self._baseline_const.compute_loss(
+                device=device
+                )
+            y_tensor = torch.tensor(ys, dtype=torch.float64, device=device)
+            with torch.no_grad():
+                loss_before = self._baseline_const.compute_loss(
                 x_tensor, y_tensor
             )
-        tabular.record('{}/LossAfter'.format("BaselineConstraint"), loss_after)
+            tabular.record('{}/LossBefore'.format("BaselineConstraint"), loss_before)
+            self._bl_optimizer_const.optimize(x_tensor, y_tensor)
+            with torch.no_grad():
+                loss_after = self._baseline_const.compute_loss(
+                    x_tensor, y_tensor
+                )
+            tabular.record('{}/LossAfter'.format("BaselineConstraint"), loss_after)
+        else:
+            self._baseline_const.fit(paths)
         return penalties_tensor, penalties
 
     def _policy_opt_input_values(self, episodes, baselines):
@@ -746,35 +755,7 @@ class NPO(RLAlgorithm):
         else:
             raise ValueError('Invalid entropy_method')
 
-    def __getstate__(self):
-        """Parameters to save in snapshot.
 
-        Returns:
-            dict: Parameters to save.
-
-        """
-        data = self.__dict__.copy()
-        del data['_name_scope']
-        del data['_policy_opt_inputs']
-        del data['_f_policy_entropy']
-        del data['_f_policy_stddev']
-        del data['_f_policy_kl']
-        del data['_f_rewards']
-        del data['_f_returns']
-        del data['_policy_network']
-        del data['_old_policy_network']
-        return data
-
-    def __setstate__(self, state):
-        """Parameters to restore from snapshot.
-
-        Args:
-            state (dict): Parameters to restore from.
-
-        """
-        self.__dict__ = state
-        self._name_scope = tf.name_scope(self._name)
-        #self._init_opt()
 
     def obtain_exact_trajectories(self, trainer, env_update):
         """Obtain an exact amount of trajs from each env being sampled from.

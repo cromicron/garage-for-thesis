@@ -526,6 +526,10 @@ class Trainer:
         """
         self._stats.total_env_steps = value
 
+    @property
+    def algo(self):
+        return self._algo
+
 
 class NotSetupError(Exception):
     """Raise when an experiment is about to run without setup."""
