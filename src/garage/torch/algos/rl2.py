@@ -5,6 +5,7 @@ This module contains RL2, RL2Worker and the environment wrapper for RL2.
 # yapf: disable
 import abc
 import collections
+import gc
 import pickle
 import akro
 from dowel import logger
@@ -187,6 +188,7 @@ class RL2Worker(DefaultWorker):
                 pass
         self._agent_infos['batch_idx'] = np.full(len(self._env_steps),
                                                  self._worker_number)
+        gc.collect()
         return self.collect_episode()
 
 

@@ -5,7 +5,7 @@
 import argparse
 import metaworld_constrained as metaworld
 import torch
-
+import os
 from garage import wrap_experiment
 from garage.envs import MetaWorldSetTaskEnv, normalize
 from garage.experiment import (MetaEvaluator, MetaWorldTaskSampler, SetTaskSampler)
@@ -21,7 +21,7 @@ from garage.trainer import Trainer
 import wandb
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-
+os.environ['RAY_memory_usage_threshold'] = '0.98'
 @wrap_experiment(
     snapshot_mode='last',
     archive_launch_repo = False,
@@ -45,6 +45,7 @@ def main(
     entropy_coefficient=5e-6,
     n_epochs_per_eval=5,
 ):
+
     """Set up environment and algorithm and run the task."""
     set_seed(seed)
     ml1 = metaworld.ML1(
@@ -106,6 +107,7 @@ def main(
 
 
     envs = tasks.sample(meta_batch_size)
+
     sampler = RaySampler(
         agents=policy,
         envs=envs,
