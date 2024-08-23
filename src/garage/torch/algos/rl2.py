@@ -68,7 +68,7 @@ class RL2Env(Wrapper):
         first_obs = np.concatenate([
             first_obs,
             np.zeros(self._env.action_space.shape),  # Zeros for action space
-            [0], [0],  # Original zeros
+            [0], [1],  # Original zeros, 1 for indicating that new eps started
             np.zeros(self._n_constraints)
             # Zeros based on the number of constraints
         ])
