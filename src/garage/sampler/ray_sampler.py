@@ -147,12 +147,13 @@ class RaySampler(Sampler):
                 worker.update.remote(param_ids[worker_id], env_ids[worker_id]))
         return updating_workers
 
-    def obtain_samples(self, itr, num_samples, agent_update, env_update=None):
+    def obtain_samples(self, itr, num_samples, agent_update, env_update=None,
+                       unique_worker_usage=True):
         """Sample the policy for new episodes.
 
         Args:
             itr (int): Iteration number.
-            num_samples (int): Number of steps the the sampler should collect.
+            num_samples (int): Number of steps the sampler should collect.
             agent_update (object): Value which will be passed into the
                 `agent_update_fn` before sampling episodes. If a list is passed
                 in, it must have length exactly `factory.n_workers`, and will
@@ -161,6 +162,8 @@ class RaySampler(Sampler):
                 `env_update_fn` before sampling episodes. If a list is passed
                 in, it must have length exactly `factory.n_workers`, and will
                 be spread across the workers.
+            unique_worker_usage (bool): If True, ensure each worker is only used once.
+                Defaults to False.
 
         Returns:
             EpisodeBatch: Batch of gathered episodes.
@@ -170,41 +173,45 @@ class RaySampler(Sampler):
         completed_samples = 0
         batches = []
 
-        # update the policy params of each worker before sampling
+        # Update the policy params of each worker before sampling
         # for the current iteration
         idle_worker_ids = []
+        used_worker_ids = set() if unique_worker_usage else None  # Set to track used workers if unique_worker_usage is True
         updating_workers = self._update_workers(agent_update, env_update)
 
         with click.progressbar(length=num_samples, label='Sampling') as pbar:
             while completed_samples < num_samples:
-                # if there are workers still being updated, check
-                # which ones are still updating and take the workers that
-                # are done updating, and start collecting episodes on those
-                # workers.
+                # Check if there are workers still being updated
+                # and collect the ones that are done updating
                 if updating_workers:
                     updated, updating_workers = ray.wait(updating_workers,
                                                          num_returns=1,
                                                          timeout=0.1)
                     upd = [ray.get(up) for up in updated]
-                    idle_worker_ids.extend(upd)
+                    for worker_id in upd:
+                        if not unique_worker_usage or (
+                            worker_id not in used_worker_ids):
+                            idle_worker_ids.append(worker_id)
 
-                # if there are idle workers, use them to collect episodes and
-                # mark the newly busy workers as active
+                # If there are idle workers, use them to collect episodes
                 while idle_worker_ids:
                     idle_worker_id = idle_worker_ids.pop()
                     worker = self._all_workers[idle_worker_id]
                     active_workers.append(worker.rollout.remote())
+                    if unique_worker_usage:
+                        used_worker_ids.add(
+                            idle_worker_id)  # Mark this worker as used if unique_worker_usage is True
 
-                # check which workers are done/not done collecting a sample
-                # if any are done, send them to process the collected
-                # episode if they are not, keep checking if they are done
+                # Check which workers are done/not done collecting a sample
                 ready, not_ready = ray.wait(active_workers,
                                             num_returns=1,
                                             timeout=0.001)
                 active_workers = not_ready
                 for result in ready:
                     ready_worker_id, episode_batch = ray.get(result)
-                    idle_worker_ids.append(ready_worker_id)
+                    # Do not add the worker back to idle_worker_ids if unique_worker_usage is True
+                    if not unique_worker_usage:
+                        idle_worker_ids.append(ready_worker_id)
                     num_returned_samples = episode_batch.lengths.sum()
                     completed_samples += num_returned_samples
                     batches.append(episode_batch)
