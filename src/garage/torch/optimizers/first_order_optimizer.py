@@ -1,6 +1,7 @@
 import os
 import torch
 from torch.utils.data import TensorDataset, DataLoader
+from dowel import logger
 
 
 class FirstOrderOptimizer:
@@ -25,6 +26,7 @@ class FirstOrderOptimizer:
         learning_rate=1e-3,
         max_optimization_epochs=1000,
         tolerance=1e-6,
+        gradient_clip_norm=2.0,
         batch_size=32,
         callback=None,
         verbose=False,
@@ -59,6 +61,16 @@ class FirstOrderOptimizer:
             loss_function (callable): The loss function to be used for optimization.
         """
         self._loss_function = loss_function
+
+    def _calculate_grad_norm(self):
+        total_norm = 0
+        for group in self.optimizer.param_groups:
+            for param in group['params']:
+                if param.grad is not None:
+                    param_norm = param.grad.data.norm(2)
+                    total_norm += param_norm.item() ** 2
+        total_norm = total_norm ** 0.5
+        return total_norm
 
     def optimize(self, inputs, targets=None):
         """Executes the optimization process.
@@ -98,10 +110,12 @@ class FirstOrderOptimizer:
                 loss = loss[0] if isinstance(loss, (list, tuple)) else loss
 
                 loss.backward()
+                norm = self._calculate_grad_norm()
                 self.optimizer.step()
                 epoch_loss += loss.item()
 
             epoch_loss /= len(dataloader)
+            logger.log(f"gradient norm of last step {norm}")
 
             if self._verbose:
                 print(f'Epoch {epoch + 1}, Loss: {epoch_loss}')
