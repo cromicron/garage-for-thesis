@@ -81,9 +81,10 @@ class RL2MetaEvaluator:
         ep_list = episodes.to_list()
         exploration_eps = []
         adaptaion_eps = []
-        for i in range(0, len(ep_list), self._n_exploration_eps):
-            exploration_eps.append(ep_list[i])
-            adaptaion_eps.extend(ep_list[i+1: i+10])
+        for i in range(0, len(ep_list), self._n_test_episodes):
+            exploration_eps.extend(ep_list[i: i+ self._n_exploration_eps])
+            adaptaion_eps.extend(
+                ep_list[i+self._n_exploration_eps: i+self._n_test_episodes])
         e = EpisodeBatch.from_list(episodes.env_spec, exploration_eps)
         a = EpisodeBatch.from_list(episodes.env_spec, adaptaion_eps)
         return e, a

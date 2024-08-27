@@ -8,6 +8,7 @@ function, and a rollout function.
 """
 from collections import defaultdict
 import itertools
+import warnings
 
 import click
 import cloudpickle
@@ -147,8 +148,22 @@ class RaySampler(Sampler):
                 worker.update.remote(param_ids[worker_id], env_ids[worker_id]))
         return updating_workers
 
+    @staticmethod
+    def _sort_by_batch_idx(batches):
+        if "batch_idx" not in batches[0].agent_infos:
+            warnings.warn(
+                "Warning: 'batch_idx' not found in 'agent_infos'. Batches will not be sorted.",
+                UserWarning)
+            return batches
+
+        # Sort batches in place based on 'batch_idx' in 'agent_infos'
+        batches.sort(key=lambda x: x.agent_infos["batch_idx"][0])
+        return batches
+
+
+
     def obtain_samples(self, itr, num_samples, agent_update, env_update=None,
-                       unique_worker_usage=True):
+                       unique_worker_usage=True, sort_by_batch_idx=True):
         """Sample the policy for new episodes.
 
         Args:
@@ -164,6 +179,8 @@ class RaySampler(Sampler):
                 be spread across the workers.
             unique_worker_usage (bool): If True, ensure each worker is only used once.
                 Defaults to False.
+            sort_by_batch_idx (bool): If True order the results by batch-idx
+                which is the worker number.
 
         Returns:
             EpisodeBatch: Batch of gathered episodes.
@@ -216,7 +233,8 @@ class RaySampler(Sampler):
                     completed_samples += num_returned_samples
                     batches.append(episode_batch)
                     pbar.update(num_returned_samples)
-
+        if sort_by_batch_idx:
+            self._sort_by_batch_idx(batches)
         samples = EpisodeBatch.concatenate(*batches)
         self.total_env_steps += sum(samples.lengths)
         return samples

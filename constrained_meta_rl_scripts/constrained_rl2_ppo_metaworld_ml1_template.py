@@ -111,6 +111,7 @@ def main(
     sampler = RaySampler(
         agents=policy,
         envs=envs,
+        seed=seed +1,
         max_episode_length=env_spec.max_episode_length,
         is_tf_worker=False,
         n_workers=meta_batch_size,
@@ -120,6 +121,7 @@ def main(
     test_task_sampler = RaySampler(
         agents=policy,
         envs=test_envs,
+        seed=seed+2,
         max_episode_length=env_spec.max_episode_length,
         is_tf_worker=False,
         n_workers=10,
@@ -128,9 +130,9 @@ def main(
     meta_evaluator = RL2MetaEvaluator(
         sampler=test_task_sampler,
         task_sampler=test_tasks,
-        n_exploration_eps=episodes_per_task,
+        n_exploration_eps=1,
         n_test_tasks=10,
-        n_test_episodes=10,
+        n_test_episodes=episodes_per_task,
         w_and_b=w_and_b
     )
 
@@ -163,7 +165,6 @@ def main(
                   lr_clip_range=0.2,
                   optimizer_args_policy=optimizer_args_policy,
                   optimizer_args_baseline=optimizer_args_baseline,
-                  #batch_size_baseline=128,
                   stop_entropy_gradient=True,
                   entropy_method='max',
                   policy_ent_coeff=entropy_coefficient,
@@ -180,7 +181,7 @@ def main(
     trainer.setup(algo, envs)
 
     if w_and_b:
-        wandb.init(project=f"constrained-rl2-ml1-{env_name}", config={
+        wandb.init(project=f"test_seed_constrained-rl2-ml1-{env_name}", config={
             "inner_rl": inner_lr,
             "meta_batch_size": meta_batch_size,
             "discount": 0.99,
