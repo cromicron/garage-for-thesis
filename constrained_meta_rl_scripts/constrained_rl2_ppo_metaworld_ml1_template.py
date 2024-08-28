@@ -181,7 +181,7 @@ def main(
     trainer.setup(algo, envs)
 
     if w_and_b:
-        wandb.init(project=f"test_seed_constrained-rl2-ml1-{env_name}", config={
+        wandb.init(project=f"constrained-rl2-ml1-{env_name}", config={
             "inner_rl": inner_lr,
             "meta_batch_size": meta_batch_size,
             "discount": 0.99,
