@@ -23,7 +23,7 @@ import wandb
 device = "cuda" if torch.cuda.is_available() else "cpu"
 os.environ["RAY_memory_usage_threshold"] = ".98"
 @wrap_experiment(
-    snapshot_mode='last',
+    snapshot_mode="last",
     archive_launch_repo = False,
     use_existing_dir=True,
     name="rl2_ml1",
@@ -61,15 +61,16 @@ def main(
     }
 
     # no need to normalize the reward, because it's the same env
+    n_constraints = 1 if ml1.include_const_in_obs else 0
     tasks = MetaWorldTaskSampler(
         ml1, 'train',
         lambda env, _: RL2Env(normalize(env, normalize_reward=True),
-                              n_constraints=1), constructor_args=constructor_args)
+                              n_constraints=n_constraints), constructor_args=constructor_args)
 
     test_tasks = MetaWorldTaskSampler(
         ml1, 'test',
         lambda env, _: RL2Env(normalize(env, normalize_reward=True),
-                              n_constraints=1), constructor_args=constructor_args)
+                              n_constraints=n_constraints), constructor_args=constructor_args)
 
     env_updates = tasks.sample(50)
     env = env_updates[0]()
