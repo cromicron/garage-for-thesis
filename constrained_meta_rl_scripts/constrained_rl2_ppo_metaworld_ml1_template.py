@@ -21,7 +21,7 @@ from garage.trainer import Trainer
 import wandb
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-os.environ['RAY_memory_usage_threshold'] = '0.98'
+os.environ["RAY_memory_usage_threshold"] = ".98"
 @wrap_experiment(
     snapshot_mode='last',
     archive_launch_repo = False,
@@ -104,6 +104,8 @@ def main(
         value_function_const = LinearFeatureBaseline(
             env_spec=env.spec,
             name="LinearFeatureBaselineConstraints")
+    else:
+        value_function_const = None
 
 
     envs = tasks.sample(meta_batch_size)
