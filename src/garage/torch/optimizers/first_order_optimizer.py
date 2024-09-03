@@ -26,7 +26,7 @@ class FirstOrderOptimizer:
         learning_rate=1e-3,
         max_optimization_epochs=1000,
         tolerance=1e-6,
-        gradient_clip_norm=2.0,
+        gradient_clip_norm=None,
         batch_size=32,
         callback=None,
         verbose=False,
@@ -39,6 +39,7 @@ class FirstOrderOptimizer:
         self._learning_rate = learning_rate
         self._max_optimization_epochs = max_optimization_epochs
         self._tolerance = tolerance
+        self._clip_norm = gradient_clip_norm
         self._batch_size = batch_size
         self._callback = callback
         self._verbose = verbose
@@ -72,6 +73,11 @@ class FirstOrderOptimizer:
         total_norm = total_norm ** 0.5
         return total_norm
 
+    def _clip_gradients(self):
+        # Clip gradients here
+        for group in self.optimizer.param_groups:
+            torch.nn.utils.clip_grad_norm_(group["params"],
+                                           self._clip_norm)
     def optimize(self, inputs, targets=None):
         """Executes the optimization process.
 
@@ -110,11 +116,16 @@ class FirstOrderOptimizer:
                 loss = loss[0] if isinstance(loss, (list, tuple)) else loss
 
                 loss.backward()
+                if self._clip_norm:
+                    norm_pre_clip = self._calculate_grad_norm()
+                    self._clip_gradients()
                 norm = self._calculate_grad_norm()
                 self.optimizer.step()
                 epoch_loss += loss.item()
 
             epoch_loss /= len(dataloader)
+            if self._clip_norm:
+                logger.log(f"gradient norm pre clip {norm_pre_clip}")
             logger.log(f"gradient norm of last step {norm}")
 
             if self._verbose:

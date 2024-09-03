@@ -44,6 +44,7 @@ def main(
     w_and_b,
     entropy_coefficient=5e-6,
     n_epochs_per_eval=5,
+    gradient_clip = None,
 ):
 
     """Set up environment and algorithm and run the task."""
@@ -142,6 +143,7 @@ def main(
     optimizer_args_policy = dict(batch_size=32,
                                  max_optimization_epochs=10,
                                  learning_rate=5e-4,
+                                 gradient_clip_norm=gradient_clip,
                                  load_state=False,
                                  state_dir="saved_models/rl2_ml1_constrained_pick_place/optimizers")
 
@@ -222,6 +224,7 @@ if __name__ == "__main__":
     parser.add_argument('--constraint_size', type=float, default=0.03)
 
     parser.add_argument('--n_epochs_per_eval', type=int, default=10)
+    parser.add_argument('--gradient_clip', type=float)
 
     parser.add_argument('--w_and_b', dest= 'w_and_b', action='store_true')
     parser.add_argument('--no_w_and_b', dest='w_and_b', action='store_false')
