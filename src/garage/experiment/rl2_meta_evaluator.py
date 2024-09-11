@@ -126,7 +126,7 @@ class RL2MetaEvaluator:
         else:
             name_map = None
 
-        with tabular.prefix(self._prefix + "/" + "post_adaptation" if self._prefix else ""):
+        with tabular.prefix(self._prefix + "/" + "post_adaptation/" if self._prefix else ""):
             log_multitask_performance(
                 self._eval_itr * itr_multiplier,
                 adapted_episodes,
