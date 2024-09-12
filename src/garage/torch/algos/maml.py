@@ -5,6 +5,7 @@ import copy
 
 from dowel import tabular
 import numpy as np
+import os
 import torch
 
 from garage import (_Default, EpisodeBatch, log_multitask_performance,
@@ -61,6 +62,8 @@ class MAML:
                  train_constraint=None,
                  lr_constraint=None,
                  constraint_threshold=None,
+                 save_state=False,
+                 state_dir=None,
                  ):
         self._sampler = sampler
 
@@ -88,6 +91,10 @@ class MAML:
                 [policy.lagrangian], lr=lr_constraint)
             self._constraint_threshold = constraint_threshold
         self._train_constraint = train_constraint
+        self._save_state = save_state
+        self._state_dir = state_dir
+        if save_state:
+            assert state_dir is not None, "specify a dir to save model and optimizer"
 
     def train(self, trainer):
         """Obtain samples and start training for each epoch.
@@ -211,10 +218,18 @@ class MAML:
                 to_log.extend([ev_const, self.policy.lagrangian.item()])
             average_return = self._log_performance(*to_log)
 
-        if self._meta_evaluator and itr % self._evaluate_every_n_epochs == 0:
+        if self._meta_evaluator and itr % self._evaluate_every_n_epochs == 545:
             self._meta_evaluator.evaluate(self)
 
         update_module_params(self._old_policy, old_theta)
+        if self._save_state:
+            if not os.path.exists(self._state_dir):
+                # Create the directory
+                os.makedirs(self._state_dir)
+            params = self.policy.state_dict()
+            torch.save(params,f"{self._state_dir}/policy_params.pt")
+            optimizer_state = self._meta_optimizer.state_dict()
+            torch.save(optimizer_state,f"{self._state_dir}/optimizer_state.pt")
 
         return average_return
 

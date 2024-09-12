@@ -53,22 +53,24 @@ def main(
         "constraint_size": ml10.constraint_size,
         "include_const_in_obs": ml10.include_const_in_obs,
     }
-    tasks = MetaWorldTaskSampler(ml10, 'train', constructor_args=constructor_args)
+    tasks = MetaWorldTaskSampler(ml10, "train", constructor_args=constructor_args)
     env = tasks.sample(10)[0]()
     test_sampler = SetTaskSampler(
         MetaWorldSetTaskEnv,
-        env=MetaWorldSetTaskEnv(ml10, 'test', constructor_args=constructor_args),
+        env=MetaWorldSetTaskEnv(ml10, "test", constructor_args=constructor_args),
         constructor_args={"constructor_args": constructor_args}
     )
     num_test_envs = 5
 
-    policy = GaussianMLPPolicy(env_spec=env.spec,
-                               hidden_sizes=(128, 128),
-                               hidden_nonlinearity=torch.tanh,
-                               output_nonlinearity=torch.tanh,
-                               min_std=0.5,
-                               max_std=1.5,
-                               std_mlp_type='share_mean_std')
+    policy = GaussianMLPPolicy(
+        env_spec=env.spec,
+        hidden_sizes=(128, 128),
+        hidden_nonlinearity=torch.tanh,
+        output_nonlinearity=torch.tanh,
+        min_std=0.5,
+        max_std=1.5,
+        std_mlp_type="share_mean_std",
+    )
     if train_constraint:
         policy.register_parameter(
             "lagrangian",
@@ -120,6 +122,8 @@ def main(
         constraint_threshold=0.001,
         lr_constraint=lr_lagrangian,
         w_and_b=w_and_b,
+        save_state=True,
+        state_dir=f"saved_models/maml_ml10_constrained_{constraint_mode}_const_in_obs={include_const_in_obs}"
     )
     if w_and_b:
         wandb.init(project=f"constrained-maml-ml10", config={
