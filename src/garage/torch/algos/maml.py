@@ -218,7 +218,7 @@ class MAML:
                 to_log.extend([ev_const, self.policy.lagrangian.item()])
             average_return = self._log_performance(*to_log)
 
-        if self._meta_evaluator and itr % self._evaluate_every_n_epochs == 545:
+        if self._meta_evaluator and itr % self._evaluate_every_n_epochs == 0:
             self._meta_evaluator.evaluate(self)
 
         update_module_params(self._old_policy, old_theta)
