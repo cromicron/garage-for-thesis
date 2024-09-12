@@ -172,14 +172,14 @@ class MAML:
             for task in all_samples:
                 for i in range(len(task)):
                     if i < self._num_grad_updates:
-                        const_violations_pre.append(rollout.const_violations.sum(axis=-1))
+                        const_violations_pre.append(task[i].const_violations.sum(axis=-1))
                     else:
-                        const_violations_post.append(rollout.const_violations.sum(axis=-1))
+                        const_violations_post.append(task[i].const_violations.sum(axis=-1))
                     if self._train_constraint:
                         baselines_const_list.append(
-                            rollout.baselines_const[rollout.valids.bool()])
+                            task[i].baselines_const[task[i].valids.bool()])
                     cum_penalties.append(
-                        [r['penalties'] for r in rollout.paths])
+                        [r['penalties'] for r in task[i].paths])
             avg_const_violation_pre = torch.cat(const_violations_pre).mean()
             avg_const_violation_post = torch.cat(const_violations_post).mean()
             if self._train_constraint:
@@ -196,6 +196,7 @@ class MAML:
                 lagrangian_loss = -self.policy.lagrangian*(
                     penalty_pre + penalty_post
                 )
+                print(f"lagrangian loss {lagrangian_loss}")
                 lagrangian_loss.backward()
                 self._optimizer_lagrangian.step()
                 with torch.no_grad():
