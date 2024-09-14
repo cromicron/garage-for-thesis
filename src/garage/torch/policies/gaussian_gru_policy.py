@@ -36,20 +36,38 @@ class GaussianGRUModule(nn.Module):
 
         # Define GRU layers
         self.gru_mean = nn.GRU(input_size=input_dim, hidden_size=hidden_dim, batch_first=True)
+        for name, param in self.gru_mean.named_parameters():
+            if 'weight' in name:
+                # Apply Xavier (Glorot) Uniform Initialization to all weight matrices
+                torch.nn.init.xavier_uniform_(param)
+            elif 'bias' in name:
+                # Initialize biases to zero (optional, can be constant or other strategies too)
+                torch.nn.init.zeros_(param)
         if std_share_network:
             self.gru_std = None  # Share the same GRU for mean and std
             # Define output layers for mean and std
             self.fc_mean_std = nn.Linear(hidden_dim, output_dim*2)
+            torch.nn.init.xavier_uniform_(self.fc_mean_std.weight)
             self.fc_mean = None
             self.fc_std = None
         else:
             # Not used and probably incorrect
             self.gru_std = nn.GRU(input_size=input_dim, hidden_size=hidden_dim, batch_first=True)
+            for name, param in self.gru_std.named_parameters():
+                if 'weight' in name:
+                    # Apply Xavier (Glorot) Uniform Initialization to all weight matrices
+                    torch.nn.init.xavier_uniform_(param)
+                elif 'bias' in name:
+                    # Initialize biases to zero (optional, can be constant or other strategies too)
+                    torch.nn.init.zeros_(param)
             self.fc_mean = nn.Linear(hidden_dim, output_dim)
             self.fc_std = nn.Linear(hidden_dim, output_dim)
+            torch.nn.init.xavier_uniform_(self.fc_mean.weight)
+            torch.nn.init.xavier_uniform_(self.fc_std.weight)
 
             if self.learn_std:
                 self.fc_std = nn.Linear(hidden_dim, output_dim)
+                torch.nn.init.xavier_uniform_(self.fc_std.weight)
                 self.std_param = nn.Parameter(torch.full((output_dim,), init_std))
 
             else:
