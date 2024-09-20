@@ -186,6 +186,8 @@ class DefaultWorker(Worker):
         self.start_episode()
         while not self.step_episode():
             pass
+        self._agent_infos['batch_idx'] = np.full(len(self._env_steps),
+                                                 self._worker_number)
         return self.collect_episode()
 
     def shutdown(self):

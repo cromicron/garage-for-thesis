@@ -4,6 +4,7 @@ import collections
 import copy
 
 from dowel import tabular
+import inspect
 import numpy as np
 import os
 import torch
@@ -196,7 +197,6 @@ class MAML:
                 lagrangian_loss = -self.policy.lagrangian*(
                     penalty_pre + penalty_post
                 )
-                print(f"lagrangian loss {lagrangian_loss}")
                 lagrangian_loss.backward()
                 self._optimizer_lagrangian.step()
                 with torch.no_grad():
@@ -220,8 +220,10 @@ class MAML:
             average_return = self._log_performance(*to_log)
 
         if self._meta_evaluator and itr % self._evaluate_every_n_epochs == 0:
-            self._meta_evaluator.evaluate(self)
-
+            if "itr_multiplier" in inspect.signature(self._meta_evaluator.evaluate).parameters:
+                self._meta_evaluator.evaluate(self, itr_multiplier=self._evaluate_every_n_epochs)
+            else:
+                self._meta_evaluator.evaluate(self)
         update_module_params(self._old_policy, old_theta)
         if self._save_state:
             if not os.path.exists(self._state_dir):

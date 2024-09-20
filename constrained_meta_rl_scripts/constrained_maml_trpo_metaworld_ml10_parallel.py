@@ -7,8 +7,8 @@ import metaworld_constrained as metaworld
 import torch
 
 from garage import wrap_experiment
-from garage.envs import MetaWorldSetTaskEnv
-from garage.experiment import (MetaEvaluator, MetaWorldTaskSampler, SetTaskSampler)
+from garage.experiment import MetaWorldTaskSampler
+from garage.experiment.maml_meta_evaluator import MetaEvaluator as MamlEvaluator
 from garage.experiment.deterministic import set_seed
 from garage.np.baselines import LinearFeatureBaseline
 from garage.sampler import RaySampler
@@ -55,12 +55,10 @@ def main(
     }
     tasks = MetaWorldTaskSampler(ml10, "train", constructor_args=constructor_args)
     env = tasks.sample(10)[0]()
-    test_sampler = SetTaskSampler(
-        MetaWorldSetTaskEnv,
-        env=MetaWorldSetTaskEnv(ml10, "test", constructor_args=constructor_args),
-        constructor_args={"constructor_args": constructor_args}
-    )
+
+    test_tasks = MetaWorldTaskSampler(ml10, "test", constructor_args=constructor_args)
     num_test_envs = 5
+    test_env = test_tasks.sample(num_test_envs)[0]()
 
     policy = GaussianMLPPolicy(
         env_spec=env.spec,
@@ -84,10 +82,20 @@ def main(
     else:
         value_function_const = None
 
-    meta_evaluator = MetaEvaluator(test_task_sampler=test_sampler,
+
+    test_sampler = RaySampler(
+        agents=policy,
+        seed=seed+2,
+        envs=test_env,
+        max_episode_length=env.spec.max_episode_length,
+        n_workers=rollouts_per_task
+    )
+
+    meta_evaluator = MamlEvaluator(sampler=test_sampler,
+                                   task_sampler=test_tasks,
                                    n_exploration_eps=rollouts_per_task,
-                                   n_test_tasks=num_test_envs * 2,
-                                   n_test_episodes=10,
+                                   n_test_tasks=num_test_envs*2,
+                                   n_test_episodes=rollouts_per_task,
                                    w_and_b=w_and_b,
                                    pre_post_prefixes=(
                                        "pre_adaptation/",
@@ -95,9 +103,10 @@ def main(
                                    ))
 
     sampler = RaySampler(agents=policy,
+                         seed=seed+1,
                          envs=env,
                          max_episode_length=env.spec.max_episode_length,
-                         n_workers=meta_batch_size)
+                         n_workers=rollouts_per_task)
 
     trainer = Trainer(ctxt)
     algo = MAMLTRPO(
@@ -123,7 +132,8 @@ def main(
         lr_constraint=lr_lagrangian,
         w_and_b=w_and_b,
         save_state=True,
-        state_dir=f"saved_models/maml_ml10_constrained_{constraint_mode}_const_in_obs={include_const_in_obs}"
+        state_dir=f"saved_models/maml_ml10_constrained_{constraint_mode}_const_in_obs={include_const_in_obs}",
+        evaluate_every_n_epochs=5,
     )
     if w_and_b:
         wandb.init(project=f"constrained-maml-ml10", config={
@@ -148,7 +158,7 @@ def main(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=1)
-    parser.add_argument("--epochs", type=int, default=2000)
+    parser.add_argument("--epochs", type=int, default=4000)
     parser.add_argument("--rollouts_per_task", type=int, default=10)
     parser.add_argument("--meta_batch_size", type=int, default=20)
     parser.add_argument("--inner_lr", type=float, default=1e-4)
