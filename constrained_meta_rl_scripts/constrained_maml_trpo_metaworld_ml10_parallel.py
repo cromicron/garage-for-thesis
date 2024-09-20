@@ -132,7 +132,7 @@ def main(
         lr_constraint=lr_lagrangian,
         w_and_b=w_and_b,
         save_state=True,
-        state_dir=f"saved_models/maml_ml10_constrained_{constraint_mode}_const_in_obs={include_const_in_obs}",
+        state_dir=f"saved_models/p_maml_ml10_constrained_{constraint_mode}_const_in_obs={include_const_in_obs}",
         evaluate_every_n_epochs=5,
     )
     if w_and_b:
@@ -187,7 +187,7 @@ if __name__ == "__main__":
     constraint_mode = kwargs.constraint_mode
     train_constraint = kwargs.train_constraint
     include_const_in_obs = kwargs.include_const_in_obs
-    experiment_name = f"constrained_maml_ml10_{constraint_mode}_train_constraint={train_constraint}_include_const_in_obs={include_const_in_obs}"
+    experiment_name = f"p_constrained_maml_ml10_{constraint_mode}_train_constraint={train_constraint}_include_const_in_obs={include_const_in_obs}"
     experiment_overrides = {"name": experiment_name}
     main(experiment_overrides, **vars(kwargs))
 
