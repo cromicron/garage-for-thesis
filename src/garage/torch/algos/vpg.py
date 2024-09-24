@@ -106,9 +106,13 @@ class VPG(RLAlgorithm):
 
         self._maximum_entropy = (entropy_method == 'max')
         self._entropy_regularzied = (entropy_method == 'regularized')
-        self._check_entropy_configuration(entropy_method, center_adv,
-                                          stop_entropy_gradient,
-                                          policy_ent_coeff)
+        self._check_entropy_configuration(
+            entropy_method,
+            center_adv,
+            scale_adv,
+            stop_entropy_gradient,
+            policy_ent_coeff
+        )
         self._episode_reward_mean = collections.deque(maxlen=100)
         self._sampler = sampler
 
@@ -120,14 +124,14 @@ class VPG(RLAlgorithm):
         self._old_policy = copy.deepcopy(self.policy)
 
     @staticmethod
-    def _check_entropy_configuration(entropy_method, center_adv,
+    def _check_entropy_configuration(entropy_method, center_adv, scale_adv,
                                      stop_entropy_gradient, policy_ent_coeff):
         if entropy_method not in ('max', 'regularized', 'no_entropy'):
             raise ValueError('Invalid entropy_method')
 
         if entropy_method == 'max':
-            if center_adv:
-                raise ValueError('center_adv should be False when '
+            if center_adv or scale_adv:
+                raise ValueError('center_adv and scale_adv should be False when '
                                  'entropy_method is max')
             if not stop_entropy_gradient:
                 raise ValueError('stop_gradient should be True when '
