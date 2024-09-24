@@ -180,7 +180,13 @@ class VPG(RLAlgorithm):
         actions_flat = np_to_torch(eps.actions)
         rewards_flat = np_to_torch(eps.rewards)
         returns_flat = torch.cat(filter_valids(returns, valids))
-        advs_flat = self._compute_advantage(rewards, valids, baselines)
+        advs_flat = self._compute_advantage(
+            rewards,
+            valids,
+            baselines,
+            self._center_adv,
+            self._scale_adv
+        )
 
         with torch.no_grad():
             policy_loss_before = self._compute_loss_with_adv(
@@ -349,7 +355,13 @@ class VPG(RLAlgorithm):
         obs_flat = torch.cat(filter_valids(obs, valids))
         actions_flat = torch.cat(filter_valids(actions, valids))
         rewards_flat = torch.cat(filter_valids(rewards, valids))
-        advantages_flat = self._compute_advantage(rewards, valids, baselines)
+        advantages_flat = self._compute_advantage(
+            rewards,
+            valids,
+            baselines,
+            self._center_adv,
+            self._scale_adv,
+        )
         if self._train_constraint:
             advantages_flat_const = self._compute_advantage(
                 penalties, valids, baselines_constraint
@@ -387,7 +399,14 @@ class VPG(RLAlgorithm):
 
         return -objectives.mean()
 
-    def _compute_advantage(self, rewards, valids, baselines):
+    def _compute_advantage(
+        self,
+        rewards,
+        valids,
+        baselines,
+        center=False,
+        scale=False
+    ):
         r"""Compute mean value of loss.
 
         Notes: P is the maximum episode length (self.max_episode_length)
