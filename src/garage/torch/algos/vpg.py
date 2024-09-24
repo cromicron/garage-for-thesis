@@ -67,6 +67,7 @@ class VPG(RLAlgorithm):
         discount=0.99,
         gae_lambda=1,
         center_adv=True,
+        scale_adv=False,
         positive_adv=False,
         policy_ent_coeff=0.0,
         use_softplus_entropy=False,
@@ -91,7 +92,10 @@ class VPG(RLAlgorithm):
                 "no value function for constraint specified"
         self._value_function_const = value_function_const
         self._gae_lambda = gae_lambda
+        assert not (scale_adv and center_adv), "if you center, don't scale"
+
         self._center_adv = center_adv
+        self._scale_adv = scale_adv
         self._positive_adv = positive_adv
         self._policy_ent_coeff = policy_ent_coeff
         self._use_softplus_entropy = use_softplus_entropy
@@ -404,7 +408,11 @@ class VPG(RLAlgorithm):
         if self._center_adv:
             means = advantage_flat.mean()
             variance = advantage_flat.var()
-            advantage_flat = (advantage_flat - means) / (variance + 1e-8)
+            advantage_flat = (advantage_flat - 0) / (variance + 1e-8)
+
+        if self._scale_adv:
+            variance = advantage_flat.var()
+            advantage_flat = advantage_flat / (variance + 1e-8)
 
         if self._positive_adv:
             advantage_flat -= advantage_flat.min()
