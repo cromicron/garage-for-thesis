@@ -4,7 +4,6 @@
 
 import argparse
 import metaworld_constrained as metaworld
-from garage.envs import normalize
 import torch
 
 from garage import wrap_experiment
@@ -12,7 +11,7 @@ from garage.experiment import MetaWorldTaskSampler
 from garage.experiment.maml_meta_evaluator import MetaEvaluator as MamlEvaluator
 from garage.experiment.deterministic import set_seed
 from garage.np.baselines import LinearFeatureBaseline
-from garage.sampler import LocalSampler, RaySampler
+from garage.sampler import RaySampler
 from garage.torch.algos import MAMLTRPO
 from garage.torch.policies import GaussianMLPPolicy
 from garage.trainer import Trainer
@@ -104,7 +103,7 @@ def main(
     meta_evaluator = MamlEvaluator(sampler=test_sampler,
                                    task_sampler=test_tasks,
                                    n_exploration_eps=rollouts_per_task,
-                                   n_test_tasks=num_test_envs,
+                                   n_test_tasks=num_test_envs*2,
                                    n_test_episodes=rollouts_per_task,
                                    w_and_b=w_and_b,
                                    pre_post_prefixes=(
@@ -112,7 +111,7 @@ def main(
                                        "post_adaptation/",
                                    ))
 
-    sampler = LocalSampler(agents=policy,
+    sampler = RaySampler(agents=policy,
                          seed=seed+1,
                          envs=env,
                          max_episode_length=env.spec.max_episode_length,
@@ -136,6 +135,7 @@ def main(
         policy_ent_coeff=5e-5,
         stop_entropy_gradient=True,
         center_adv=normalize_adv,
+        scale_adv=scale_adv,
         constraint=True,
         train_constraint=train_constraint,
         constraint_threshold=0.001,
