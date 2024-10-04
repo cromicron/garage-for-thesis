@@ -374,8 +374,15 @@ class RL2(MetaRLAlgorithm, abc.ABC):
             train_constraint = True
         self._constraint = constraint
         if constraint and train_constraint:
-            self._optimizer_lagrangian = torch.optim.Adam(
-                [self.policy.lagrangian], lr=lr_constraint)
+            if hasattr(self.policy, "lagrangians")  and isinstance(
+                self.policy.lagrangians, torch.nn.ParameterDict):
+                # multiple lagrangians
+                self._optimizer_lagrangian = torch.optim.Adam(
+                    self.policy.lagrangians.values(), lr=lr_constraint)
+
+            else:
+                self._optimizer_lagrangian = torch.optim.Adam(
+                    [self.policy.lagrangian], lr=lr_constraint)
             self._constraint_threshold = constraint_threshold
         self._train_constraint = train_constraint
 
@@ -477,20 +484,73 @@ class RL2(MetaRLAlgorithm, abc.ABC):
         if self._train_constraint:
             self._optimizer_lagrangian.zero_grad()
 
-            lagrangian_loss = -self.policy.lagrangian * (
-                episodes.env_infos[
-                    "constraint"].mean() - self._constraint_threshold
-            )
-            lagrangian_loss.backward()
-            self._optimizer_lagrangian.step()
-            with torch.no_grad():
-                self.policy.lagrangian.data.clamp_(min=0)
-            logger.log(f'Lagrangian Loss {lagrangian_loss}')
-            logger.log(f'New Lagrangian {self.policy.lagrangian.item()}')
-            if wandb.run:
-                wandb.log({"lambda": self.policy.lagrangian.item()}, step=wandb.run.step)
-            if self._save_weights:
-                self.policy.save_weights()
+            if hasattr(self.policy, "lagrangians"):
+
+                task_names = episodes.env_infos[
+                    "task_name"]  # numpy array indicating which env each row belongs to
+                unique_env_names = np.unique(task_names)
+
+                # Loop over each unique environment
+                for env_name in unique_env_names:
+                    # Find the indices where the current environment is present
+                    env_indices = np.where(task_names == env_name)[
+                        0]  # Get indices for the current env
+
+                    # Compute the mean constraint violation for the current environment
+                    constraint_values = np.mean(
+                        episodes.env_infos["constraint"][env_indices])
+
+                    # Get the corresponding Lagrangian multiplier for this environment (from PyTorch ParameterDict)
+                    env_name_str = str(
+                        env_name)  # Convert to string if necessary
+                    lagrangian_multiplier = self.policy.lagrangians[
+                        env_name_str]
+
+                    # Compute the Lagrangian loss for the current environment
+                    lagrangian_loss = -lagrangian_multiplier * (
+                            constraint_values - self._constraint_threshold)
+
+                    # Backpropagate the loss for this Lagrangian multiplier
+                    lagrangian_loss.backward()
+
+                    # Log the loss and Lagrangian multiplier for this environment
+                    logger.log(
+                        f'Lagrangian Loss for {env_name_str}: {lagrangian_loss.item()}')
+
+
+                self._optimizer_lagrangian.step()
+
+                # Clamp all Lagrangian multipliers to be non-negative
+                with torch.no_grad():
+                    for env_name in unique_env_names:
+                        env_name_str = str(env_name)
+                        self.policy.lagrangians[env_name_str].data.clamp_(
+                            min=0)
+                        updated_value = self.policy.lagrangians[
+                            env_name_str].item()
+                        logger.log(
+                            f'Updated Lagrangian for {env_name_str}: {updated_value}')
+                        # Log the updated Lagrangian multiplier to wandb (after the optimizer step)
+                        if wandb.run:
+                            wandb.log({f"lambda_{env_name_str}":
+                                           self.policy.lagrangians[
+                                               env_name_str].item()},
+                                      step=wandb.run.step)
+            else:
+                lagrangian_loss = -self.policy.lagrangian * (
+                    episodes.env_infos[
+                        "constraint"].mean() - self._constraint_threshold
+                )
+                lagrangian_loss.backward()
+                self._optimizer_lagrangian.step()
+                with torch.no_grad():
+                    self.policy.lagrangian.data.clamp_(min=0)
+                logger.log(f'Lagrangian Loss {lagrangian_loss}')
+                logger.log(f'New Lagrangian {self.policy.lagrangian.item()}')
+                if wandb.run:
+                    wandb.log({"lambda": self.policy.lagrangian.item()}, step=wandb.run.step)
+        if self._save_weights:
+            self.policy.save_weights()
 
         if device == "cuda":
             self._policy.to("cpu")

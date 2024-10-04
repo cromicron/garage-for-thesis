@@ -378,11 +378,13 @@ class NPO(RLAlgorithm):
         valids,
         penalties=None,
         baselines_const=None,
+        lambdas=None
     ):
         """Build policy loss and other output tensors.
 
         Args:
             i (namedtuple): Collection of variables to compute policy loss.
+            lambdas: optional if mutliple lambdas
 
         Returns:
             torch.Tensor: Policy loss.
@@ -420,13 +422,16 @@ class NPO(RLAlgorithm):
         adv = torch.reshape(adv, (-1, self.max_episode_length))
 
         if self._train_constraint:
-            lagrangian = torch.detach(self.policy.lagrangian).item()
             adv_const = compute_advantages(self._discount,
                                  self._gae_lambda,
                                  self.max_episode_length,
                                  baselines_const,
                                  penalties,
                                  ).to(dtype=torch.float64)
+            if hasattr(self.policy, "lagrangians"):
+                lagrangian = lambdas
+            else:
+                lagrangian = torch.detach(self.policy.lagrangian).item()
             adv -=  lagrangian * adv_const
             adv /= (1 + lagrangian)
         # Optionally normalize advantages
@@ -670,7 +675,15 @@ class NPO(RLAlgorithm):
                 )
             tabular.record('{}/LossAfter'.format("BaselineConstraint"), loss_after)
         else:
-            self._baseline_const.fit(paths)
+            if isinstance(self._baseline_const, dict):
+                # seperate baselines for envs
+                for env_name in self._baseline_const.keys():
+                    env_path = [paths[i] for i in range(len(paths)) if
+                                episodes.padded_env_infos["task_name"][
+                                    i, 0] == env_name]
+                    self._baseline_const[env_name].fit(env_path)
+            else:
+                self._baseline_const.fit(paths)
         return penalties_tensor, penalties
 
     def _policy_opt_input_values(self, episodes, baselines):

@@ -97,8 +97,29 @@ class RL2NPO(NPO):
 
                 tabular.record("const_baseline/ExplainedVariance",
                                ev_const)
-
             policy_opt_input_values.extend([penalties, baselines_const])
+            if isinstance(self._baseline_const, dict):
+                # ad individual lambdas and arrange them
+                env_names_tensor = episodes.padded_env_infos[
+                    "task_name"]  # n * 1000 tensor
+
+                # Get the first entry from each row to extract unique environment names (n * 1)
+                env_names_list = env_names_tensor[:,
+                                 0]  # First column contains the env_name for each row
+
+                # Create a list to store the corresponding Lagrangian multipliers
+                lagrangian_values = []
+
+                # Loop over the environment names and get the corresponding Lagrangian from the ParameterDict
+                for env_name in env_names_list:
+                    env_name_str = env_name.item()  # Convert to a Python string or key if necessary
+                    lagrangian_value = self.policy.lagrangians[
+                        env_name_str].detach()
+                    lagrangian_values.append(lagrangian_value)
+
+                # Stack the Lagrangian values into a tensor (n * 1)
+                lagrangian_tensor = torch.stack(lagrangian_values).unsqueeze(1)
+                policy_opt_input_values.append(lagrangian_tensor)
         inputs = [torch.tensor(i, dtype=torch.float64, device=device) for i in policy_opt_input_values]
         # Train policy network
         self.policy.train()
@@ -191,11 +212,27 @@ class RL2NPO(NPO):
             for obs in episodes.observations_list
             ]
         else:
-            obs = [torch.tensor(
-                np.maximum(self._baseline_const.predict({"observations": obs}),0),
-                dtype=torch.float32,
-                device=device) for obs in episodes.observations_list
-                   ]
+            if isinstance(self._baseline_const, dict):
+                obs = []
+                for env_name in self._baseline_const.keys():
+                    env_obs = [episodes.observations_list[i] for i in
+                               range(len(episodes.observations_list)) if
+                               episodes.padded_env_infos["task_name"][
+                                   i, 0] == env_name]
+
+                    obs.extend(
+                        [torch.tensor(
+                            np.maximum(self._baseline_const[env_name].predict(
+                                {"observations": o}), 0),
+                            dtype=torch.float32,
+                            device=device) for o in env_obs
+                        ])
+            else:
+                obs = [torch.tensor(
+                    np.maximum(self._baseline_const.predict({"observations": obs}),0),
+                    dtype=torch.float32,
+                    device=device) for obs in episodes.observations_list
+                       ]
 
         return pad_batch_array(torch.cat(obs, dim=0), episodes.lengths,
                                self.max_episode_length)

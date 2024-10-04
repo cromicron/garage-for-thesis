@@ -21,12 +21,12 @@ from garage.trainer import Trainer
 import wandb
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-os.environ["RAY_memory_usage_threshold"] = ".98"
+os.environ["RAY_memory_usage_threshold"] = ".99"
 @wrap_experiment(
     snapshot_mode="last",
     archive_launch_repo = False,
     use_existing_dir=True,
-    name="rl2_ml1",
+    name="constrained_rl2_ml10",
 )
 def main(
     ctxt,
@@ -41,6 +41,7 @@ def main(
     constraint_size,
     include_const_in_obs,
     w_and_b,
+    individual_lambdas=False,
     entropy_coefficient=5e-6,
     n_epochs_per_eval=5,
     gradient_clip = None,
@@ -98,13 +99,36 @@ def main(
     baseline.module.to(device=device, dtype=torch.float64)
 
     if train_constraint:
-        policy.register_parameter(
-            "lagrangian",
-            torch.nn.Parameter(torch.tensor(lagrangian))
-        )
-        value_function_const = LinearFeatureBaseline(
-            env_spec=env.spec,
-            name="LinearFeatureBaselineConstraints")
+
+        if individual_lambdas:
+            # Create a ParameterDict to store Lagrangian multipliers with env_name as keys
+            lagrangian_dict = torch.nn.ParameterDict()
+
+            # Initialize a dictionary for the value function constraints
+            value_function_const = {}
+
+            env_names = [key for key in ml10.train_classes.keys()]
+            for env_name in env_names:
+                # Create and register each Lagrangian multiplier with env_name as key
+                lagrangian_param = torch.nn.Parameter(torch.tensor(lagrangian))
+                lagrangian_dict[env_name] = lagrangian_param
+
+                # Create the corresponding value function for each environment
+                value_function_const[env_name] = LinearFeatureBaseline(
+                    env_spec=env.spec,
+                    name=f"LinearFeatureBaselineConstraints_{env_name}"
+                )
+
+            # Register the ParameterDict in the policy so it becomes part of the model
+            policy.lagrangians = lagrangian_dict
+        else:
+            policy.register_parameter(
+                "lagrangian",
+                torch.nn.Parameter(torch.tensor(lagrangian))
+            )
+            value_function_const = LinearFeatureBaseline(
+                env_spec=env.spec,
+                name="LinearFeatureBaselineConstraints")
     else:
         value_function_const = None
 
@@ -120,21 +144,21 @@ def main(
         n_workers=meta_batch_size,
         worker_class=RL2Worker,
         worker_args=dict(n_episodes_per_trial=episodes_per_task))
-    test_envs = test_tasks.sample(10)
+    test_envs = test_tasks.sample(5)
     test_task_sampler = RaySampler(
         agents=policy,
         envs=test_envs,
         seed=seed+2,
         max_episode_length=env_spec.max_episode_length,
         is_tf_worker=False,
-        n_workers=10,
+        n_workers=5,
         worker_class=RL2Worker,
         worker_args=dict(n_episodes_per_trial=episodes_per_task))
     meta_evaluator = RL2MetaEvaluator(
         sampler=test_task_sampler,
         task_sampler=test_tasks,
         n_exploration_eps=1,
-        n_test_tasks=10,
+        n_test_tasks=5,
         n_test_episodes=episodes_per_task,
         w_and_b=w_and_b
     )
@@ -185,7 +209,7 @@ def main(
     trainer.setup(algo, envs)
 
     if w_and_b:
-        wandb.init(project="constrained-rl2-ml10", config={
+        wandb.init(project="seed_constrained-rl2-ml10", config={
             "meta_batch_size": meta_batch_size,
             "discount": 0.99,
             "gae_lambda": 0.95,
@@ -222,16 +246,25 @@ if __name__ == "__main__":
 
     parser.add_argument("--n_epochs_per_eval", type=int, default=10)
     parser.add_argument("--gradient_clip", type=float)
-
+    parser.add_argument(
+        "--individual_lambdas",
+        dest="individual_lambdas",
+        action="store_true"
+    )
     parser.add_argument("--w_and_b", dest= "w_and_b", action="store_true")
     parser.add_argument("--no_w_and_b", dest="w_and_b", action="store_false")
-    parser.set_defaults(train_constraint=True, include_const_in_obs=True, w_and_b=True)
-    parser.set_defaults()
+    parser.set_defaults(
+        train_constraint=True,
+        include_const_in_obs=True,
+        w_and_b=True,
+        individual_lambdas=False,
+    )
     kwargs = parser.parse_args()
     constraint_mode = kwargs.constraint_mode
     train_constraint = kwargs.train_constraint
     include_const_in_obs = kwargs.include_const_in_obs
-    experiment_name = f"constrained_rl2_ml10_{constraint_mode}_train_constraint={train_constraint}_include_const_in_obs={include_const_in_obs}"
+    individual_lambdas = kwargs.individual_lambdas
+    experiment_name = f"test_constrained_rl2_ml10_{constraint_mode}_train_constraint={train_constraint}_include_const_in_obs={include_const_in_obs}_individual_lambdas={individual_lambdas}"
     experiment_overrides = {"name": experiment_name}
     main(experiment_overrides, **vars(kwargs))
 
