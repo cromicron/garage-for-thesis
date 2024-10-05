@@ -209,7 +209,7 @@ def main(
     trainer.setup(algo, envs)
 
     if w_and_b:
-        wandb.init(project="giconstrained-rl2-ml10", config={
+        wandb.init(project="constrained-rl2-ml10", config={
             "meta_batch_size": meta_batch_size,
             "discount": 0.99,
             "gae_lambda": 0.95,
