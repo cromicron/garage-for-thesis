@@ -209,7 +209,7 @@ def main(
     trainer.setup(algo, envs)
 
     if w_and_b:
-        wandb.init(project="seed_constrained-rl2-ml10", config={
+        wandb.init(project="giconstrained-rl2-ml10", config={
             "meta_batch_size": meta_batch_size,
             "discount": 0.99,
             "gae_lambda": 0.95,
@@ -264,7 +264,7 @@ if __name__ == "__main__":
     train_constraint = kwargs.train_constraint
     include_const_in_obs = kwargs.include_const_in_obs
     individual_lambdas = kwargs.individual_lambdas
-    experiment_name = f"test_constrained_rl2_ml10_{constraint_mode}_train_constraint={train_constraint}_include_const_in_obs={include_const_in_obs}_individual_lambdas={individual_lambdas}"
+    experiment_name = f"constrained_rl2_ml10_{constraint_mode}_train_constraint={train_constraint}_include_const_in_obs={include_const_in_obs}_individual_lambdas={individual_lambdas}"
     experiment_overrides = {"name": experiment_name}
     main(experiment_overrides, **vars(kwargs))
 
