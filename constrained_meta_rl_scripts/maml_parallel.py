@@ -2,6 +2,7 @@
 """Train Constrained Meta-RL on metaworld pick-place env"""
 
 import argparse
+import os
 import metaworld_constrained as metaworld
 import torch
 
@@ -16,6 +17,7 @@ from garage.torch.policies import GaussianMLPPolicy
 from garage.trainer import Trainer
 import wandb
 
+os.environ["RAY_memory_usage_threshold"] = ".98"
 @wrap_experiment(
     snapshot_mode='last',
     archive_launch_repo = False,
