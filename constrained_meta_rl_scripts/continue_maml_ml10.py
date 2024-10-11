@@ -17,7 +17,9 @@ def continue_maml(
     snapshot_path,
     w_and_b_project,
     w_and_b_run_id,
-    snapshot_index):
+    snapshot_index,
+    n_epochs = None,
+):
     """
     Continue training a model using MAML from a saved snapshot, with optional Weights & Biases integration.
 
@@ -33,7 +35,7 @@ def continue_maml(
     trainer = Trainer(ctxt)
     snapshot_path_suffix = "" if snapshot_index is None else "_" + snapshot_index
     trainer.restore(snapshot_path + snapshot_path_suffix)
-    trainer.resume()
+    trainer.resume(n_epochs=n_epochs)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Continue MAML from snapshot")
@@ -41,6 +43,7 @@ if __name__ == "__main__":
     parser.add_argument("--w_and_b_project", type=str, required=True)
     parser.add_argument("--w_and_b_run_id", type=str)
     parser.add_argument("--snapshot_index", type=str)
+    parser.add_argument("--n_epochs", type=int)
     kwargs = parser.parse_args()
 
     # Overrides for the experiment - important for snapshotter
