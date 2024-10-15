@@ -97,11 +97,14 @@ class MAML:
         self._state_dir = state_dir
         if save_state:
             assert state_dir is not None, "specify a dir to save model and optimizer"
-        self._best_success_rate = float('-inf')
+        self._best_success_rate_test = float('-inf')
+        self._best_success_rate_train = float('-inf')
         if self._train_constraint:
-            self._lowest_violation = float('inf')
+            self._lowest_violation_test = float('inf')
+            self._lowest_violation_train = float('inf')
         self._validation_evaluator = validation_evaluator
-
+        self._threshold_met_test = False
+        self._threshold_met_train = False
     def train(self, trainer):
         """Obtain samples and start training for each epoch.
 
@@ -223,6 +226,32 @@ class MAML:
             if self._train_constraint:
                 to_log.extend([ev_const, self.policy.lagrangian.item()])
             average_return = self._log_performance(*to_log)
+        success_rate_train = tabular.as_dict[
+            "post_adaptation/Average/SuccessRate"]
+        if self._train_constraint:
+            const_violation_train = tabular.as_dict[
+                "post_adaptation/Average/Constraint"]
+            if const_violation_train < self._constraint_threshold:
+                self._threshold_met_train = True  # Mark that threshold condition is met
+                if success_rate_train > self._best_success_rate_train:
+                    logger.log(f"new best model. Success Rate: {success_rate_train}, constraint violation: {const_violation_train}")
+                    self._best_success_rate_train = success_rate_train
+                    self.save_model(itr, "best_model_train")
+
+            elif not self._threshold_met_train:  # Save lowest violation only if threshold has never been met
+                if const_violation_train < self._lowest_violation_train:
+                    logger.log(
+                        f"new best model. Success Rate: {success_rate_train}, constraint violation: {const_violation_train}")
+                    self._lowest_violation_train = const_violation_train
+                    self.save_model(itr, "low_viol_model_train")
+
+        else:
+            if success_rate_train > self._best_success_rate_train:
+                logger.log(
+                    f"new best model. Success Rate: {success_rate_train}")
+                self._best_success_rate_train = success_rate_train
+                self.save_model(itr, "best_model_no_constraint_train")
+
 
         if self._meta_evaluator and itr % self._evaluate_every_n_epochs == 0:
             if "itr_multiplier" in inspect.signature(
@@ -236,43 +265,37 @@ class MAML:
             if self._train_constraint:
                 constraint_violation = results["constraint_violations"]
                 if constraint_violation < self._constraint_threshold:
-                    self.threshold_met = True  # Mark that threshold condition is met
-                    if success_rate > self._best_success_rate:
+                    self._threshold_met_test = True  # Mark that threshold condition is met
+                    if success_rate > self._best_success_rate_test:
                         logger.log(f"new best model. Success Rate: {success_rate}, constraint violation: {constraint_violation}")
-                        self._best_success_rate = success_rate
-                        self.save_model(itr, success_rate,
-                                        constraint_violation,
-                                        "best_model")
+                        self._best_success_rate_test = success_rate
+                        self.save_model(itr, "best_model")
                         if self._validation_evaluator is not None:
                             logger.log("Checking Performance on Validation Ens")
                             self._validation_evaluator.evaluate(self, epoch=itr)
 
-                elif not self.threshold_met:  # Save lowest violation only if threshold has never been met
-                    if constraint_violation < self._lowest_violation:
+                elif not self._threshold_met_test:  # Save lowest violation only if threshold has never been met
+                    if constraint_violation < self._lowest_violation_test:
                         logger.log(
                             f"new best model. Success Rate: {success_rate}, constraint violation: {constraint_violation}")
-                        self._lowest_violation = constraint_violation
-                        self.save_model(itr, success_rate,
-                                        constraint_violation,
-                                        "low_viol_model")
+                        self._lowest_violation_test = constraint_violation
+                        self.save_model(itr, "low_viol_model")
                         if self._validation_evaluator is not None:
-                            logger.log("Checking Performance on Validation Ens")
+                            logger.log("Checking Performance on Validation Env")
                             self._validation_evaluator.evaluate(self, epoch=itr)
             else:
-                if success_rate > self._best_success_rate:
+                if success_rate > self._best_success_rate_test:
                     logger.log(
                         f"new best model. Success Rate: {success_rate}")
-                    self._best_success_rate = success_rate
-                    self.save_model(itr, success_rate,
-                                    None,
-                                    "best_model_no_constraint")
+                    self._best_success_rate_test = success_rate
+                    self.save_model(itr,  "best_model_no_constraint")
                     if self._validation_evaluator is not None:
-                        logger.log("Checking Performance on Validation Envs")
+                        logger.log("Checking Performance on Validation Env")
                         self._validation_evaluator.evaluate(self, epoch=itr)
         update_module_params(self._old_policy, old_theta)
         return average_return
 
-    def save_model(self, itr, success_rate, violation, model_type):
+    def save_model(self, itr, model_type):
         if not os.path.exists(self._state_dir):
             os.makedirs(self._state_dir)
         # Save policy parameters
