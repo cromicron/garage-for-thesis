@@ -85,6 +85,7 @@ class MAMLTRPO(MAML):
                  lr_constraint=None,
                  save_state = False,
                  state_dir =None,
+                 validation_evaluator=None,
                  ):
         if constraint and (train_constraint is None):
             train_constraint = True
@@ -137,5 +138,6 @@ class MAMLTRPO(MAML):
                          lr_constraint=lr_constraint,
                          constraint_threshold=constraint_threshold,
                          save_state=save_state,
-                         state_dir=state_dir
+                         state_dir=state_dir,
+                         validation_evaluator=validation_evaluator
                          )

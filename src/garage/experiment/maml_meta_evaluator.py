@@ -5,6 +5,7 @@ from dowel import logger, tabular
 from garage import EpisodeBatch, log_multitask_performance
 from garage.experiment.deterministic import get_seed
 from garage.sampler import DefaultWorker, LocalSampler, WorkerFactory
+import numpy as np
 
 
 class MetaEvaluator:
@@ -75,7 +76,7 @@ class MetaEvaluator:
         self._pre_post_prefixes = pre_post_prefixes
         if pre_post_prefixes is not None:
             assert len(pre_post_prefixes) == 2, "specify two prefixes"
-    def evaluate(self, algo, test_episodes_per_task=None, itr_multiplier=1):
+    def evaluate(self, algo, test_episodes_per_task=None, itr_multiplier=1, epoch=None):
         """Evaluate the Meta-RL algorithm on the test tasks.
 
         Args:
@@ -83,6 +84,7 @@ class MetaEvaluator:
             test_episodes_per_task (int or None): Number of episodes per task.
             itr_multiplier: necessary for w and b logging, if not every
             epoch is logged.
+            epoch: optionally give epoch directly.
 
         """
         if test_episodes_per_task is None:
@@ -118,8 +120,9 @@ class MetaEvaluator:
             if self._pre_post_prefixes is not None:
                 suffix_pre = self._pre_post_prefixes[0]
                 suffix_post = self._pre_post_prefixes[1]
+                epoch_log = epoch if epoch is not None else self._eval_itr * itr_multiplier
                 log_multitask_performance(
-                    self._eval_itr * itr_multiplier,
+                    epoch_log,
                     EpisodeBatch.concatenate(*exploration_episodes),
                     getattr(algo, 'discount', 1.0),
                     name_map=name_map,
@@ -127,7 +130,7 @@ class MetaEvaluator:
                     super_prefix=suffix_pre,
                 )
             log_multitask_performance(
-                self._eval_itr * itr_multiplier,
+                epoch_log,
                 EpisodeBatch.concatenate(*adapted_episodes),
                 getattr(algo, 'discount', 1.0),
                 name_map=name_map,
@@ -135,3 +138,17 @@ class MetaEvaluator:
                 super_prefix=suffix_post,
             )
         self._eval_itr += 1
+        success = []
+        const_violations = []
+        for ep in adapted_episodes:
+            success_rate = np.any(ep.padded_env_infos["success"] == 1,
+                                  axis=1).mean()
+            const_violation = ep.env_infos["constraint"].mean()
+            success.append(success_rate)
+            const_violations.append(const_violation)
+        success_rate_total = np.array(success).mean()
+        const_violation_total = np.array(const_violations).mean()
+        return {
+            "success_rate": success_rate_total,
+            "constraint_violations": const_violation_total
+        }

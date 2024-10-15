@@ -5,13 +5,12 @@
 import argparse
 import metaworld_constrained as metaworld
 import torch
-
 from garage import wrap_experiment
 from garage.experiment import MetaWorldTaskSampler
 from garage.experiment.maml_meta_evaluator import MetaEvaluator as MamlEvaluator
 from garage.experiment.deterministic import set_seed
 from garage.np.baselines import LinearFeatureBaseline
-from garage.sampler import RaySampler
+from garage.sampler import RaySampler, LocalSampler
 from garage.torch.algos import MAMLTRPO
 from garage.torch.policies import GaussianMLPPolicy
 from garage.trainer import Trainer
@@ -48,6 +47,7 @@ def main(
         constraint_mode=constraint_mode,
         constraint_size=constraint_size,
         include_const_in_obs=include_const_in_obs,
+        valid=True
     )
     constructor_args = {
         "constraint_mode": ml10.constraint_mode,
@@ -66,6 +66,12 @@ def main(
         "test",
         constructor_args=constructor_args
     )
+    valid_tasks = MetaWorldTaskSampler(
+        ml10,
+        "valid",
+        constructor_args=constructor_args
+    )
+
     num_test_envs = 5
     test_env = test_tasks.sample(num_test_envs)[0]()
 
@@ -110,6 +116,25 @@ def main(
                                        "pre_adaptation/",
                                        "post_adaptation/",
                                    ))
+    valid_env = valid_tasks.sample(6)[0]()
+    valid_sampler = LocalSampler(
+        agents=policy,
+        seed=seed+3,
+        envs=valid_env,
+        max_episode_length=env.spec.max_episode_length,
+        n_workers=rollouts_per_task
+    )
+
+    validation_evaluator = MamlEvaluator(
+        sampler=valid_sampler,
+        task_sampler=valid_tasks,
+        n_exploration_eps=rollouts_per_task,
+        n_test_tasks=12,
+        n_test_episodes=rollouts_per_task,
+        w_and_b=w_and_b,
+        prefix="Validation",
+        pre_post_prefixes=("pre_adaptation/","post_adaptation/",)
+    )
 
     sampler = RaySampler(agents=policy,
                          seed=seed+1,
@@ -144,9 +169,10 @@ def main(
         save_state=True,
         state_dir=f"saved_models/maml_ml10_constrained_{constraint_mode}_const_in_obs={include_const_in_obs}_scale_adv={scale_adv}",
         evaluate_every_n_epochs=5,
+        validation_evaluator=validation_evaluator,
     )
     if w_and_b:
-        wandb.init(project=f"constrained-maml-ml10", config={
+        wandb.init(project=f"test_valid_constrained-maml-ml10", config={
             "inner_rl": inner_lr,
             "meta_batch_size": meta_batch_size,
             "discount": 0.99,

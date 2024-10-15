@@ -3,7 +3,7 @@
 import collections
 import copy
 
-from dowel import tabular
+from dowel import tabular, logger
 import inspect
 import numpy as np
 import os
@@ -65,6 +65,7 @@ class MAML:
                  constraint_threshold=None,
                  save_state=False,
                  state_dir=None,
+                 validation_evaluator=None,
                  ):
         self._sampler = sampler
 
@@ -96,6 +97,10 @@ class MAML:
         self._state_dir = state_dir
         if save_state:
             assert state_dir is not None, "specify a dir to save model and optimizer"
+        self._best_success_rate = float('-inf')
+        if self._train_constraint:
+            self._lowest_violation = float('inf')
+        self._validation_evaluator = validation_evaluator
 
     def train(self, trainer):
         """Obtain samples and start training for each epoch.
@@ -220,21 +225,71 @@ class MAML:
             average_return = self._log_performance(*to_log)
 
         if self._meta_evaluator and itr % self._evaluate_every_n_epochs == 0:
-            if "itr_multiplier" in inspect.signature(self._meta_evaluator.evaluate).parameters:
-                self._meta_evaluator.evaluate(self, itr_multiplier=self._evaluate_every_n_epochs)
+            if "itr_multiplier" in inspect.signature(
+                self._meta_evaluator.evaluate).parameters:
+                results = self._meta_evaluator.evaluate(self,
+                                                        itr_multiplier=self._evaluate_every_n_epochs)
             else:
-                self._meta_evaluator.evaluate(self)
-        update_module_params(self._old_policy, old_theta)
-        if self._save_state:
-            if not os.path.exists(self._state_dir):
-                # Create the directory
-                os.makedirs(self._state_dir)
-            params = self.policy.state_dict()
-            torch.save(params,f"{self._state_dir}/policy_params.pt")
-            optimizer_state = self._meta_optimizer.state_dict()
-            torch.save(optimizer_state,f"{self._state_dir}/optimizer_state.pt")
+                results = self._meta_evaluator.evaluate(self)
 
+            success_rate = results["success_rate"]
+            if self._train_constraint:
+                constraint_violation = results["constraint_violations"]
+                if constraint_violation < self._constraint_threshold:
+                    self.threshold_met = True  # Mark that threshold condition is met
+                    if success_rate > self._best_success_rate:
+                        logger.log(f"new best model. Success Rate: {success_rate}, constraint violation: {constraint_violation}")
+                        self._best_success_rate = success_rate
+                        self.save_model(itr, success_rate,
+                                        constraint_violation,
+                                        "best_model")
+                        if self._validation_evaluator is not None:
+                            logger.log("Checking Performance on Validation Ens")
+                            self._validation_evaluator.evaluate(self, epoch=itr)
+
+                elif not self.threshold_met:  # Save lowest violation only if threshold has never been met
+                    if constraint_violation < self._lowest_violation:
+                        logger.log(
+                            f"new best model. Success Rate: {success_rate}, constraint violation: {constraint_violation}")
+                        self._lowest_violation = constraint_violation
+                        self.save_model(itr, success_rate,
+                                        constraint_violation,
+                                        "low_viol_model")
+                        if self._validation_evaluator is not None:
+                            logger.log("Checking Performance on Validation Ens")
+                            self._validation_evaluator.evaluate(self, epoch=itr)
+            else:
+                if success_rate > self._best_success_rate:
+                    logger.log(
+                        f"new best model. Success Rate: {success_rate}")
+                    self._best_success_rate = success_rate
+                    self.save_model(itr, success_rate,
+                                    None,
+                                    "best_model_no_constraint")
+                    if self._validation_evaluator is not None:
+                        logger.log("Checking Performance on Validation Envs")
+                        self._validation_evaluator.evaluate(self, epoch=itr)
+        update_module_params(self._old_policy, old_theta)
         return average_return
+
+    def save_model(self, itr, success_rate, violation, model_type):
+        if not os.path.exists(self._state_dir):
+            os.makedirs(self._state_dir)
+        # Save policy parameters
+        policy_params_path = f"{self._state_dir}/{model_type}_policy_params_epoch_{itr}.pt"
+        torch.save(self.policy.state_dict(), policy_params_path)
+
+        # Save optimizer state
+        optimizer_state_path = f"{self._state_dir}/{model_type}_optimizer_state_epoch_{itr}.pt"
+        torch.save(self._meta_optimizer.state_dict(), optimizer_state_path)
+
+        # Log to Weights & Biases
+        wandb.log({
+            "model_type": model_type,
+            "policy_params": wandb.save(policy_params_path),
+            "optimizer_state": wandb.save(optimizer_state_path)
+        }, step=itr)
+
 
     def _obtain_samples(self, trainer):
         """Obtain samples for each task before and after the fast-adaptation.

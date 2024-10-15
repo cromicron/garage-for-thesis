@@ -302,8 +302,11 @@ class MetaWorldTaskSampler(TaskSampler):
         elif kind == 'test':
             self._classes = benchmark.test_classes
             self._tasks = benchmark.test_tasks
+        elif kind == 'valid':
+            self._classes = benchmark.valid_classes
+            self._tasks = benchmark.valid_tasks
         else:
-            raise ValueError('kind must be either "train" or "test", '
+            raise ValueError('kind must be either "train", "test", or valid '
                              f'not {kind!r}')
         # override the return_action_space method to prevent false dim bug
         for env_name, env_cls in self._classes.items():
