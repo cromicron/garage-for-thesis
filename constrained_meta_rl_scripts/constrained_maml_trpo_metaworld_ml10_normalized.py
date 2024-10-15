@@ -172,7 +172,7 @@ def main(
         validation_evaluator=validation_evaluator,
     )
     if w_and_b:
-        wandb.init(project=f"test_valid_constrained-maml-ml10", config={
+        wandb.init(project=f"constrained-maml-ml10", config={
             "inner_rl": inner_lr,
             "meta_batch_size": meta_batch_size,
             "discount": 0.99,
@@ -194,7 +194,7 @@ def main(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=1)
-    parser.add_argument("--epochs", type=int, default=4000)
+    parser.add_argument("--epochs", type=int, default=5000)
     parser.add_argument("--rollouts_per_task", type=int, default=10)
     parser.add_argument("--meta_batch_size", type=int, default=20)
     parser.add_argument("--inner_lr", type=float, default=1e-4)
