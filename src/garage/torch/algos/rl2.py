@@ -6,9 +6,10 @@ This module contains RL2, RL2Worker and the environment wrapper for RL2.
 import abc
 import collections
 import gc
+import os
 import pickle
 import akro
-from dowel import logger
+from dowel import logger, tabular
 import numpy as np
 import torch
 from garage import (EnvSpec, EnvStep, EpisodeBatch, log_multitask_performance,
@@ -17,6 +18,7 @@ from garage.np.algos import MetaRLAlgorithm
 from garage.sampler import DefaultWorker
 from garage.torch.algos._rl2npo import RL2NPO
 import wandb
+
 device = "cuda" if torch.cuda.is_available() else "cpu"
 # yapf: enable
 
@@ -347,6 +349,8 @@ class RL2(MetaRLAlgorithm, abc.ABC):
         train_constraint=None,
         constraint_threshold=None,
         lr_constraint=None,
+        valid_evaluator=None,
+        state_dir=None,
         **inner_algo_args
     ):
         self._env_spec = env_spec
@@ -385,7 +389,17 @@ class RL2(MetaRLAlgorithm, abc.ABC):
                     [self.policy.lagrangian], lr=lr_constraint)
             self._constraint_threshold = constraint_threshold
         self._train_constraint = train_constraint
-
+        self._best_success_rate_test = float('-inf')
+        self._best_success_rate_train = float('-inf')
+        self._best_reward_test = float('-inf')
+        self._best_reward_train = float('-inf')
+        if self._train_constraint:
+            self._lowest_violation_test = float('inf')
+            self._lowest_violation_train = float('inf')
+            self._threshold_met_test = False
+            self._threshold_met_train = False
+        self._validation_evaluator = valid_evaluator
+        self._state_dir = state_dir
 
 
     def train(self, trainer):
@@ -419,7 +433,7 @@ class RL2(MetaRLAlgorithm, abc.ABC):
 
 
         for _ in trainer.step_epochs():
-            if self._render_every_i and trainer.step_itr % self._render_every_i == 1:
+            if self._render_every_i and trainer.step_itr % self._render_every_i == 0:
                 if self._meta_evaluator.__class__.__name__ == "RL2MetaEvaluator":
                     samples = self._meta_evaluator._task_sampler.sample(5)
                 else:
@@ -444,6 +458,69 @@ class RL2(MetaRLAlgorithm, abc.ABC):
                     self._meta_evaluator.evaluate(
                         self, itr_multiplier=self._n_epochs_per_eval
                     )
+                rewards_raw_test = tabular.as_dict["MetaTest/post_adaptation/Average/AverageReturnRaw"]
+                success_rate_test = tabular.as_dict["MetaTest/post_adaptation/Average/SuccessRate"]
+                if self._train_constraint:
+                    const_viol_test = tabular.as_dict["MetaTest/post_adaptation/Average/Constraint"]
+                    if const_viol_test < self._constraint_threshold:
+                        self._threshold_met_train = True  # Mark that threshold condition is met
+                        if (
+                            success_rate_test > self._best_success_rate_train) or (
+                            (success_rate_test == self._best_success_rate_train) and (
+                            rewards_raw_test > self._best_reward_test
+                        )
+                        ):
+                            logger.log(
+                                f"new best model. Success Rate: {success_rate_test}, constraint violation: {const_viol_test}")
+                            self._best_success_rate_train = success_rate_test
+                            self._best_reward_test = rewards_raw_test
+                            self.save_model(trainer.step_itr, "best_model_train")
+
+                            if self._validation_evaluator is not None:
+                                logger.log(
+                                    "Checking Performance on Validation Ens")
+                                self._validation_evaluator.evaluate(
+                                    self,
+                                    epoch=trainer.step_itr,
+                                    run_in_eps=1,
+                                )
+
+                    elif not self._threshold_met_train:  # Save lowest violation only if threshold has never been met
+                        if const_viol_test < self._lowest_violation_train:
+                            logger.log(
+                                f"new best model. Success Rate: {success_rate_test}, constraint violation: {const_viol_test}")
+                            self._lowest_violation_test = const_viol_test
+                            self._best_reward_test = rewards_raw_test
+                            self.save_model(trainer.step_itr, "low_viol_model_train")
+                            if self._validation_evaluator is not None:
+                                logger.log(
+                                    "Checking Performance on Validation Ens")
+                                self._validation_evaluator.evaluate(
+                                    self,
+                                    epoch=trainer.step_itr,
+                                    run_in_eps=1,
+                                )
+                else:
+                    if (
+                        success_rate_test > self._best_success_rate_train) or (
+                        (
+                            success_rate_test == self._best_success_rate_train) and (
+                            rewards_raw_test > self._best_reward_test
+                        )
+                    ):
+                        logger.log(
+                            f"new best model. Success Rate: {success_rate_test}")
+                        self._best_success_rate_train = success_rate_test
+                        self._best_reward_test = rewards_raw_test
+                        self.save_model(trainer.step_itr, "best_model_train")
+                        if self._validation_evaluator is not None:
+                            logger.log(
+                                "Checking Performance on Validation Ens")
+                            self._validation_evaluator.evaluate(
+                                self,
+                                epoch=trainer.step_itr,
+                                run_in_eps=1,
+                            )
             valid_eps = False
             while not valid_eps:
 
@@ -549,8 +626,32 @@ class RL2(MetaRLAlgorithm, abc.ABC):
                 logger.log(f'New Lagrangian {self.policy.lagrangian.item()}')
                 if wandb.run:
                     wandb.log({"lambda": self.policy.lagrangian.item()}, step=wandb.run.step)
-        if self._save_weights:
-            self.policy.save_weights()
+        rewards_raw_train = tabular.as_dict[
+            "post_adaptation/Average/AverageReturnRaw"]
+        success_rate_train = tabular.as_dict[
+            "post_adaptation/Average/SuccessRate"]
+        if self._train_constraint:
+            const_violation_train = tabular.as_dict[
+                "post_adaptation/Average/Constraint"]
+            if const_violation_train < self._constraint_threshold:
+                self._threshold_met_train = True  # Mark that threshold condition is met
+                if success_rate_train > self._best_success_rate_train:
+                    logger.log(f"new best model. Success Rate: {success_rate_train}, constraint violation: {const_violation_train}")
+                    self._best_success_rate_train = success_rate_train
+                    self.save_model(itr, "best_model_train")
+            elif not self._threshold_met_train:  # Save lowest violation only if threshold has never been met
+                if const_violation_train < self._lowest_violation_train:
+                    logger.log(
+                        f"new best model. Success Rate: {success_rate_train}, constraint violation: {const_violation_train}")
+                    self._lowest_violation_train = const_violation_train
+                    self.save_model(itr, "low_viol_model_train")
+
+        else:
+            if success_rate_train > self._best_success_rate_train:
+                logger.log(
+                    f"new best model. Success Rate: {success_rate_train}")
+                self._best_success_rate_train = success_rate_train
+                self.save_model(itr, "best_model_no_constraint_train")
 
         if device == "cuda":
             self._policy.to("cpu")
@@ -558,6 +659,20 @@ class RL2(MetaRLAlgorithm, abc.ABC):
         self._policy.eval()
         return average_return
 
+
+    def save_model(self, itr, model_type):
+        if not os.path.exists(self._state_dir):
+            os.makedirs(self._state_dir)
+        # Save policy parameters
+        policy_params_path = f"{self._state_dir}/{model_type}_policy_params_epoch_{itr}.pt"
+        torch.save(self.policy.state_dict(), policy_params_path)
+
+        # Log to Weights & Biases
+        if self._w_and_b:
+            wandb.log({
+                "model_type": model_type,
+                "policy_params": wandb.save(policy_params_path),
+            }, step=itr)
     def get_exploration_policy(self):
         """Return a policy used before adaptation to a specific task.
 

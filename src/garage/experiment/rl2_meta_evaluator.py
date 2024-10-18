@@ -94,17 +94,25 @@ class RL2MetaEvaluator:
         algo,
         test_episodes_per_task=None,
         itr_multiplier=1,
+        epoch=None,
+        run_in_eps=0,
     ):
         """Evaluate the Meta-RL algorithm on the test tasks.
 
         Args:
             algo (MetaRLAlgorithm): The algorithm to evaluate.
             test_episodes_per_task (int or None): Number of episodes per task.
+                        itr_multiplier: necessary for w and b logging, if not every
+            epoch is logged.
+            epoch: optionally give epoch directly.
+            run_in_eps: Useful if env is normalized, to get mean and std before
+                        evaluating. Steps through envs this many episodes and
+                        reset hidden afterward
 
         """
+        epoch_log = epoch if epoch is not None else self._eval_itr * itr_multiplier
         if test_episodes_per_task is None:
             test_episodes_per_task = self._n_test_episodes
-        adapted_episodes = []
         logger.log(f'Sampling for adapation and meta-testing ...')
         env_updates = self._task_sampler.sample(self._n_test_tasks)
 
@@ -115,6 +123,13 @@ class RL2MetaEvaluator:
             policy = algo.policy
         agent_update = policy.get_param_values()
         steps = self._n_test_tasks*test_episodes_per_task*algo.max_episode_length
+        if run_in_eps:
+            logger.log("Stepping through envs, to get normalization values")
+            self._sampler.obtain_samples(
+                itr=self._eval_itr,
+                num_samples= self._n_test_tasks*run_in_eps*algo.max_episode_length,
+                agent_update=agent_update,
+                env_update=env_updates)
         episodes = self._sampler.obtain_samples(
             itr=self._eval_itr,
             num_samples=steps,
@@ -128,7 +143,7 @@ class RL2MetaEvaluator:
 
         with tabular.prefix(self._prefix + "/" + "post_adaptation/" if self._prefix else ""):
             log_multitask_performance(
-                self._eval_itr * itr_multiplier,
+                epoch_log,
                 adapted_episodes,
                 getattr(algo, 'discount', 1.0),
                 name_map=name_map,
@@ -137,7 +152,7 @@ class RL2MetaEvaluator:
 
         with tabular.prefix(self._prefix + "/" + "pre_adaptation/" if self._prefix else ""):
             log_multitask_performance(
-                self._eval_itr * itr_multiplier,
+                epoch_log,
                 exploration_episodes,
                 getattr(algo, 'discount', 1.0),
                 name_map=name_map,

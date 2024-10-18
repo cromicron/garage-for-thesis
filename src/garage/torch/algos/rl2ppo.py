@@ -93,6 +93,8 @@ class RL2PPO(RL2):
                  train_constraint=None,
                  constraint_threshold=None,
                  lr_constraint=None,
+                 valid_evaluator=None,
+                 state_dir=None
                  ):
         if optimizer_args_policy is None:
             optimizer_args_policy = dict()
@@ -133,4 +135,6 @@ class RL2PPO(RL2):
                          train_constraint=train_constraint,
                          constraint_threshold=constraint_threshold,
                          lr_constraint=lr_constraint,
+                         valid_evaluator=valid_evaluator,
+                         state_dir=state_dir,
                          )

@@ -13,7 +13,7 @@ from garage.experiment.rl2_meta_evaluator import RL2MetaEvaluator
 from garage.experiment.deterministic import set_seed
 from garage.np.baselines import LinearFeatureBaseline
 from garage.torch.value_functions import GaussianMLPValueFunction
-from garage.sampler import RaySampler
+from garage.sampler import RaySampler, LocalSampler
 from garage.torch.algos import RL2PPO
 from garage.torch.algos.rl2 import RL2Env, RL2Worker
 from garage.torch.policies import GaussianGRUPolicy
@@ -45,6 +45,7 @@ def main(
     entropy_coefficient=5e-6,
     n_epochs_per_eval=5,
     gradient_clip = None,
+    valid=True,
 ):
 
     """Set up environment and algorithm and run the task."""
@@ -54,6 +55,7 @@ def main(
         constraint_mode=constraint_mode,
         constraint_size=constraint_size,
         include_const_in_obs=include_const_in_obs,
+        valid=valid,
     )
     constructor_args = {
         "constraint_mode": ml10.constraint_mode,
@@ -72,6 +74,12 @@ def main(
         ml10, "test",
         lambda env, _: RL2Env(normalize(env, normalize_reward=True),
                               n_constraints=n_constraints), constructor_args=constructor_args)
+    if valid:
+        valid_tasks = MetaWorldTaskSampler(
+            ml10, "valid",
+            lambda env, _: RL2Env(normalize(env, normalize_reward=True),
+                                  n_constraints=n_constraints),
+            constructor_args=constructor_args)
 
     env_updates = tasks.sample(10)
     env = env_updates[0]()
@@ -88,13 +96,12 @@ def main(
         max_std=1.5,
         output_nonlinearity=torch.tanh,
         load_weights=False,
-        weights_dir=f"saved_models/rl2_ml1_constrained_pick_place/rl_2_gru.pth"
+
     )
     baseline = GaussianMLPValueFunction(
         env_spec=env.spec,
         hidden_sizes=(128, 128),
         load_weights=False,
-        weights_dir=f"saved_models/rl2_ml1_constrained_pick_place/baseline.pth"
         )
     baseline.module.to(device=device, dtype=torch.float64)
 
@@ -162,19 +169,42 @@ def main(
         n_test_episodes=episodes_per_task,
         w_and_b=w_and_b
     )
+    if valid:
+        valid_envs = valid_tasks.sample(6)
+        valid_task_sampler = LocalSampler(
+            agents=policy,
+            envs=valid_envs,
+            seed=seed + 3,
+            max_episode_length=env_spec.max_episode_length,
+            is_tf_worker=False,
+            n_workers=6,
+            worker_class=RL2Worker,
+            worker_args=dict(n_episodes_per_trial=episodes_per_task))
+        valid_evaluator = RL2MetaEvaluator(
+            sampler=valid_task_sampler,
+            task_sampler=valid_tasks,
+            n_exploration_eps=1,
+            n_test_tasks=6,
+            n_test_episodes=episodes_per_task,
+            w_and_b=w_and_b,
+            prefix="Validation",
+        )
+    else:
+        valid_evaluator = None
 
     optimizer_args_policy = dict(batch_size=10,
                                  max_optimization_epochs=10,
                                  learning_rate=5e-4,
                                  gradient_clip_norm=gradient_clip,
                                  load_state=False,
-                                 state_dir="saved_models/rl2_ml10_constrained/optimizers")
+                                 )
+
 
     optimizer_args_baseline = dict(batch_size=128,
                                  max_optimization_epochs=10,
                                  learning_rate=5e-4,
                                  load_state=False,
-                                 state_dir="saved_models/rl2_ml10_constrained/optimizers")
+                                 )
 
     trainer = Trainer(ctxt)
     algo = RL2PPO(meta_batch_size=meta_batch_size,
@@ -204,6 +234,8 @@ def main(
                   w_and_b=w_and_b,
                   render_every_i=None,
                   save_weights=True,
+                  valid_evaluator=valid_evaluator,
+                  state_dir=f"saved_models/rl2_ml10_constrained_{constraint_mode}_const_in_obs={include_const_in_obs}_train_constraint={train_constraint}",
                   )
 
     trainer.setup(algo, envs)
@@ -253,18 +285,21 @@ if __name__ == "__main__":
     )
     parser.add_argument("--w_and_b", dest= "w_and_b", action="store_true")
     parser.add_argument("--no_w_and_b", dest="w_and_b", action="store_false")
+    parser.add_argument("--no_valid", dest="valid", action="store_false")
     parser.set_defaults(
         train_constraint=True,
         include_const_in_obs=True,
         w_and_b=True,
         individual_lambdas=False,
+        valid=True,
     )
     kwargs = parser.parse_args()
     constraint_mode = kwargs.constraint_mode
     train_constraint = kwargs.train_constraint
     include_const_in_obs = kwargs.include_const_in_obs
     individual_lambdas = kwargs.individual_lambdas
-    experiment_name = f"constrained_rl2_ml10_{constraint_mode}_train_constraint={train_constraint}_include_const_in_obs={include_const_in_obs}_individual_lambdas={individual_lambdas}"
+    valid = kwargs.valid
+    experiment_name = f"constrained_rl2_ml10_{constraint_mode}_train_constraint={train_constraint}_include_const_in_obs={include_const_in_obs}_individual_lambdas={individual_lambdas}_valid={valid}"
     experiment_overrides = {"name": experiment_name}
     main(experiment_overrides, **vars(kwargs))
 
