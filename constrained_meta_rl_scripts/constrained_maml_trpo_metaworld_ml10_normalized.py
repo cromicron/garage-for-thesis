@@ -38,7 +38,8 @@ def main(
     constraint_mode,
     constraint_size,
     include_const_in_obs,
-    w_and_b
+    w_and_b,
+    valid,
 ):
     """Set up environment and algorithm and run the task."""
     set_seed(seed)
@@ -47,7 +48,7 @@ def main(
         constraint_mode=constraint_mode,
         constraint_size=constraint_size,
         include_const_in_obs=include_const_in_obs,
-        valid=True
+        valid=valid
     )
     constructor_args = {
         "constraint_mode": ml10.constraint_mode,
@@ -66,11 +67,7 @@ def main(
         "test",
         constructor_args=constructor_args
     )
-    valid_tasks = MetaWorldTaskSampler(
-        ml10,
-        "valid",
-        constructor_args=constructor_args
-    )
+
 
     num_test_envs = 5
     test_env = test_tasks.sample(num_test_envs)[0]()
@@ -116,25 +113,33 @@ def main(
                                        "pre_adaptation/",
                                        "post_adaptation/",
                                    ))
-    valid_env = valid_tasks.sample(6)[0]()
-    valid_sampler = LocalSampler(
-        agents=policy,
-        seed=seed+3,
-        envs=valid_env,
-        max_episode_length=env.spec.max_episode_length,
-        n_workers=rollouts_per_task
-    )
 
-    validation_evaluator = MamlEvaluator(
-        sampler=valid_sampler,
-        task_sampler=valid_tasks,
-        n_exploration_eps=rollouts_per_task,
-        n_test_tasks=12,
-        n_test_episodes=rollouts_per_task,
-        w_and_b=w_and_b,
-        prefix="Validation",
-        pre_post_prefixes=("pre_adaptation/","post_adaptation/",)
-    )
+    if valid:
+        valid_tasks = MetaWorldTaskSampler(
+            ml10,
+            "valid",
+            constructor_args=constructor_args
+        )
+        valid_env = valid_tasks.sample(6)[0]()
+        valid_sampler = LocalSampler(
+            agents=policy,
+            seed=seed + 3,
+            envs=valid_env,
+            max_episode_length=env.spec.max_episode_length,
+            n_workers=rollouts_per_task
+        )
+        validation_evaluator = MamlEvaluator(
+            sampler=valid_sampler,
+            task_sampler=valid_tasks,
+            n_exploration_eps=rollouts_per_task,
+            n_test_tasks=12,
+            n_test_episodes=rollouts_per_task,
+            w_and_b=w_and_b,
+            prefix="Validation",
+            pre_post_prefixes=("pre_adaptation/","post_adaptation/",)
+        )
+    else:
+        validation_evaluator = None
 
     sampler = RaySampler(agents=policy,
                          seed=seed+1,
@@ -213,19 +218,22 @@ if __name__ == "__main__":
 
     parser.add_argument("--w_and_b", dest= "w_and_b", action="store_true")
     parser.add_argument("--no_w_and_b", dest="w_and_b", action="store_false")
+    parser.add_argument("--no_valid", dest="valid", action="store_false")
     parser.set_defaults(
         entropy_method="max",
         normalize_adv=False,
         train_constraint=True,
         include_const_in_obs=True,
-        w_and_b=True
+        w_and_b=True,
+        valid=True,
     )
     kwargs = parser.parse_args()
     constraint_mode = kwargs.constraint_mode
     train_constraint = kwargs.train_constraint
     scale_adv = kwargs.scale_adv
     include_const_in_obs = kwargs.include_const_in_obs
-    experiment_name = f"constrained_maml_ml10_{constraint_mode}_train_constraint={train_constraint}_include_const_in_obs={include_const_in_obs}_scale_adv={scale_adv}"
+    valid = kwargs.valid
+    experiment_name = f"constrained_maml_ml10_{constraint_mode}_train_constraint={train_constraint}_include_const_in_obs={include_const_in_obs}_scale_adv={scale_adv}_valid={valid}"
     experiment_overrides = {"name": experiment_name}
     main(experiment_overrides, **vars(kwargs))
 

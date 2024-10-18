@@ -307,11 +307,12 @@ class MAML:
         torch.save(self._meta_optimizer.state_dict(), optimizer_state_path)
 
         # Log to Weights & Biases
-        wandb.log({
-            "model_type": model_type,
-            "policy_params": wandb.save(policy_params_path),
-            "optimizer_state": wandb.save(optimizer_state_path)
-        }, step=itr)
+        if self._w_and_b:
+            wandb.log({
+                "model_type": model_type,
+                "policy_params": wandb.save(policy_params_path),
+                "optimizer_state": wandb.save(optimizer_state_path)
+            }, step=itr)
 
 
     def _obtain_samples(self, trainer):
