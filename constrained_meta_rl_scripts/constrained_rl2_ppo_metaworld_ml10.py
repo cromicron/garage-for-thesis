@@ -276,7 +276,7 @@ if __name__ == "__main__":
     parser.add_argument("--constraint_size", type=float, default=0.03)
     parser.add_argument("--no_const_in_obs", dest="include_const_in_obs", action="store_false")
 
-    parser.add_argument("--n_epochs_per_eval", type=int, default=10)
+    parser.add_argument("--n_epochs_per_eval", type=int, default=5)
     parser.add_argument("--gradient_clip", type=float)
     parser.add_argument(
         "--individual_lambdas",
