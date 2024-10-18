@@ -463,18 +463,18 @@ class RL2(MetaRLAlgorithm, abc.ABC):
                 if self._train_constraint:
                     const_viol_test = tabular.as_dict["MetaTest/post_adaptation/Average/Constraint"]
                     if const_viol_test < self._constraint_threshold:
-                        self._threshold_met_train = True  # Mark that threshold condition is met
+                        self._threshold_met_test = True  # Mark that threshold condition is met
                         if (
-                            success_rate_test > self._best_success_rate_train) or (
-                            (success_rate_test == self._best_success_rate_train) and (
+                            success_rate_test > self._best_success_rate_test) or (
+                            (success_rate_test == self._best_success_rate_test) and (
                             rewards_raw_test > self._best_reward_test
                         )
                         ):
                             logger.log(
                                 f"new best model. Success Rate: {success_rate_test}, constraint violation: {const_viol_test}")
-                            self._best_success_rate_train = success_rate_test
+                            self._best_success_rate_test = success_rate_test
                             self._best_reward_test = rewards_raw_test
-                            self.save_model(trainer.step_itr, "best_model_train")
+                            self.save_model(trainer.step_itr, "best_model_test")
 
                             if self._validation_evaluator is not None:
                                 logger.log(
@@ -485,13 +485,13 @@ class RL2(MetaRLAlgorithm, abc.ABC):
                                     run_in_eps=1,
                                 )
 
-                    elif not self._threshold_met_train:  # Save lowest violation only if threshold has never been met
-                        if const_viol_test < self._lowest_violation_train:
+                    elif not self._threshold_met_test:  # Save lowest violation only if threshold has never been met
+                        if const_viol_test < self._lowest_violation_test:
                             logger.log(
                                 f"new best model. Success Rate: {success_rate_test}, constraint violation: {const_viol_test}")
                             self._lowest_violation_test = const_viol_test
                             self._best_reward_test = rewards_raw_test
-                            self.save_model(trainer.step_itr, "low_viol_model_train")
+                            self.save_model(trainer.step_itr, "low_viol_model_test")
                             if self._validation_evaluator is not None:
                                 logger.log(
                                     "Checking Performance on Validation Ens")
@@ -502,17 +502,17 @@ class RL2(MetaRLAlgorithm, abc.ABC):
                                 )
                 else:
                     if (
-                        success_rate_test > self._best_success_rate_train) or (
+                        success_rate_test > self._best_success_rate_test) or (
                         (
-                            success_rate_test == self._best_success_rate_train) and (
+                            success_rate_test == self._best_success_rate_test) and (
                             rewards_raw_test > self._best_reward_test
                         )
                     ):
                         logger.log(
                             f"new best model. Success Rate: {success_rate_test}")
-                        self._best_success_rate_train = success_rate_test
+                        self._best_success_rate_test = success_rate_test
                         self._best_reward_test = rewards_raw_test
-                        self.save_model(trainer.step_itr, "best_model_train")
+                        self.save_model(trainer.step_itr, "best_model_test")
                         if self._validation_evaluator is not None:
                             logger.log(
                                 "Checking Performance on Validation Ens")
@@ -635,10 +635,16 @@ class RL2(MetaRLAlgorithm, abc.ABC):
                 "post_adaptation/Average/Constraint"]
             if const_violation_train < self._constraint_threshold:
                 self._threshold_met_train = True  # Mark that threshold condition is met
-                if success_rate_train > self._best_success_rate_train:
+                if (
+                    success_rate_train > self._best_success_rate_train) or (
+                    (success_rate_train == self._best_success_rate_train) and (
+                    rewards_raw_train > self._best_reward_train
+                )
+                ):
                     logger.log(f"new best model. Success Rate: {success_rate_train}, constraint violation: {const_violation_train}")
                     self._best_success_rate_train = success_rate_train
                     self.save_model(itr, "best_model_train")
+                    self._best_reward_train = rewards_raw_train
             elif not self._threshold_met_train:  # Save lowest violation only if threshold has never been met
                 if const_violation_train < self._lowest_violation_train:
                     logger.log(
@@ -647,10 +653,16 @@ class RL2(MetaRLAlgorithm, abc.ABC):
                     self.save_model(itr, "low_viol_model_train")
 
         else:
-            if success_rate_train > self._best_success_rate_train:
+            if (
+                success_rate_train > self._best_success_rate_train) or (
+                (success_rate_train == self._best_success_rate_train) and (
+                rewards_raw_train > self._best_reward_train
+            )
+            ):
                 logger.log(
                     f"new best model. Success Rate: {success_rate_train}")
                 self._best_success_rate_train = success_rate_train
+                self._best_reward_train = rewards_raw_train
                 self.save_model(itr, "best_model_no_constraint_train")
 
         if device == "cuda":
