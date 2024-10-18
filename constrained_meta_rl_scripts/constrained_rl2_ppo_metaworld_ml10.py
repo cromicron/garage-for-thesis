@@ -151,40 +151,40 @@ def main(
         n_workers=meta_batch_size,
         worker_class=RL2Worker,
         worker_args=dict(n_episodes_per_trial=episodes_per_task))
-    test_envs = test_tasks.sample(5)
+    test_envs = test_tasks.sample(10)
     test_task_sampler = RaySampler(
         agents=policy,
         envs=test_envs,
         seed=seed+2,
         max_episode_length=env_spec.max_episode_length,
         is_tf_worker=False,
-        n_workers=5,
+        n_workers=10,
         worker_class=RL2Worker,
         worker_args=dict(n_episodes_per_trial=episodes_per_task))
     meta_evaluator = RL2MetaEvaluator(
         sampler=test_task_sampler,
         task_sampler=test_tasks,
         n_exploration_eps=1,
-        n_test_tasks=5,
+        n_test_tasks=10,
         n_test_episodes=episodes_per_task,
         w_and_b=w_and_b
     )
     if valid:
-        valid_envs = valid_tasks.sample(6)
+        valid_envs = valid_tasks.sample(12)
         valid_task_sampler = LocalSampler(
             agents=policy,
             envs=valid_envs,
             seed=seed + 3,
             max_episode_length=env_spec.max_episode_length,
             is_tf_worker=False,
-            n_workers=6,
+            n_workers=12,
             worker_class=RL2Worker,
             worker_args=dict(n_episodes_per_trial=episodes_per_task))
         valid_evaluator = RL2MetaEvaluator(
             sampler=valid_task_sampler,
             task_sampler=valid_tasks,
             n_exploration_eps=1,
-            n_test_tasks=6,
+            n_test_tasks=12,
             n_test_episodes=episodes_per_task,
             w_and_b=w_and_b,
             prefix="Validation",
