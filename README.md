@@ -1,175 +1,152 @@
-[![Docs](https://readthedocs.org/projects/garage/badge)](http://garage.readthedocs.org/en/latest/)
-[![Garage CI](https://github.com/rlworkgroup/garage/workflows/Garage%20CI/badge.svg?event=schedule)](https://github.com/rlworkgroup/garage/actions?query=workflow%3A%22Garage+CI%22)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/rlworkgroup/garage/blob/master/LICENSE)
-[![codecov](https://codecov.io/gh/rlworkgroup/garage/branch/master/graph/badge.svg)](https://codecov.io/gh/rlworkgroup/garage)
-[![PyPI version](https://badge.fury.io/py/garage.svg)](https://badge.fury.io/py/garage)
 
-# garage
+# Constrained Meta Reinforcement Learning with MetaWorld
 
-garage is a toolkit for developing and evaluating reinforcement learning
-algorithms, and an accompanying library of state-of-the-art implementations
-built using that toolkit.
+This repository is an adaptation of [garage](https://github.com/rlworkgroup/garage), tailored to test Model-Agnostic Meta-Learning (MAML) and RL² algorithms in constrained meta reinforcement learning settings using [MetaWorld](https://github.com/Farama-Foundation/Metaworld).
 
-The toolkit provides wide range of modular tools for implementing RL algorithms,
-including:
+## Overview
 
-* Composable neural network models
-* Replay buffers
-* High-performance samplers
-* An expressive experiment definition interface
-* Tools for reproducibility (e.g. set a global random seed which all components
-  respect)
-* Logging to many outputs, including TensorBoard
-* Reliable experiment checkpointing and resuming
-* Environment interfaces for many popular benchmark suites
-* Supporting for running garage in diverse environments, including always
-  up-to-date Docker containers
+Developed as part of a master's thesis, this project focuses on implementing and evaluating constrained meta reinforcement learning algorithms. It extends the capabilities of the original garage framework to support training and testing within constrained environments provided by a customized version of MetaWorld.
 
-See the [latest documentation](https://garage.readthedocs.org/en/latest/) for
-getting started instructions and detailed APIs.
+## Features
+
+- **Constrained Meta-RL Algorithms**: Implementation of MAML and RL² algorithms adapted for constrained environments.
+- **Customized MetaWorld Environments**: Utilizes an adjusted version of MetaWorld with specific constraints applied to tasks and environments. Find it [here](https://github.com/cromicron/metaworld_constrained).
+- **Based on Garage PR #2287**: Built upon the branch from [this pull request](https://github.com/rlworkgroup/garage/pull/2287), ensuring compatibility and stability with recent updates.
 
 ## Installation
 
-```
-pip install --user garage
-```
+### Prerequisites
 
-## Examples
+- Python 3.7 or higher
+- Git
+- Virtual environment tool (optional but recommended)
 
-Starting from version v2020.10.0, garage comes packaged with examples. To get a
-list of examples, run:
+### Steps
 
-```
-garage examples
-```
+1. **Clone the Repository**
 
-You can also run `garage examples --help`, or visit
-[the documentation](https://garage.readthedocs.io/en/latest/user/get_started.html#running-examples)
-for even more details.
+   ```bash
+   git clone https://github.com/yourusername/your-repo-name.git
+   ```
 
-## Join the Community
+2. **Set Up a Virtual Environment (Optional)**
 
-**Join the [garage-announce mailing list](https://groups.google.com/forum/#!forum/garage-announce/join)**
-for infrequent updates (<1/mo.) on the status of the project and new releases.
+   ```bash
+   cd your-repo-name
+   python -m venv venv
+   source venv/bin/activate  # On Windows use `venv\Scripts\activate`
+   ```
 
-Need some help? Want to ask garage is right for your project? Have a question
-which is not quite a bug and not quite a feature request?
+3. **Install Dependencies**
 
-**Join the community Slack** by filling out
-[this Google Form](https://docs.google.com/forms/d/e/1FAIpQLSf4AXRIbA1cLGjku4lIRQ6btStWPeIMeG3J17i4_FhFQU8X0g/viewform).
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-## Algorithms
+4. **Install the Adjusted MetaWorld**
 
-The table below summarizes the algorithms available in garage.
+   ```bash
+   git clone https://github.com/cromicron/metaworld_constrained.git
+   cd metaworld_constrained
+   pip install -e .
+   ```
 
-| Algorithm              | Framework(s)        |
-| ---------------------- | ------------------- |
-| CEM                    | numpy               |
-| CMA-ES                 | numpy               |
-| REINFORCE (a.k.a. VPG) | PyTorch, TensorFlow |
-| DDPG                   | PyTorch, TensorFlow |
-| DQN                    | PyTorch, TensorFlow |
-| DDQN                   | PyTorch, TensorFlow |
-| ERWR                   | TensorFlow          |
-| NPO                    | TensorFlow          |
-| PPO                    | PyTorch, TensorFlow |
-| REPS                   | TensorFlow          |
-| TD3                    | PyTorch, TensorFlow |
-| TNPG                   | TensorFlow          |
-| TRPO                   | PyTorch, TensorFlow |
-| MAML                   | PyTorch             |
-| RL2                    | TensorFlow          |
-| PEARL                  | PyTorch             |
-| SAC                    | PyTorch             |
-| MTSAC                  | PyTorch             |
-| MTPPO                  | PyTorch, TensorFlow |
-| MTTRPO                 | PyTorch, TensorFlow |
-| Task Embedding         | TensorFlow          |
-| Behavioral Cloning     | PyTorch             |
+5. **Install Garage**
 
-## Supported Tools and Frameworks
+   Make sure to install garage from the specific branch:
 
-garage requires Python 3.6+. If you need Python 3.5 support, the last garage
-release to support Python 3.5 was
-[v2020.06](https://github.com/rlworkgroup/garage/releases/tag/v2020.06.0).
+   ```bash
+   git clone -b your-branch-name https://github.com/yourusername/garage.git
+   cd garage
+   pip install -e .
+   ```
 
-The package is tested on Ubuntu 18.04. It is also known to run on Ubuntu 16.04,
-18.04, and 20.04, and recent versions of macOS using Homebrew. Windows users can
-install garage via WSL, or by making use of the Docker containers.
+## Running Experiments
 
-We currently support [PyTorch](https://pytorch.org/) and
-[TensorFlow](https://www.tensorflow.org/) for implementing the neural network
-portions of RL algorithms, and additions of new framework support are always
-welcome. PyTorch modules can be found in the package
-[`garage.torch`](https://github.com/rlworkgroup/garage/tree/master/src/garage/torch)
-and TensorFlow modules can be found in the package
-[`garage.tf`](https://github.com/rlworkgroup/garage/tree/master/src/garage/tf).
-Algorithms which do not require neural networks are found in the package
-[`garage.np`](https://github.com/rlworkgroup/garage/tree/master/src/garage/np).
+The experiments are organized under `ml1` and `ml10` directories, each containing tasks and algorithms (MAML and RL²). Scripts for each experiment scenario are located within the `scripts` folder of the project.
 
-The package is available for download on PyPI, and we ensure that it installs
-successfully into environments defined using
-[conda](https://docs.conda.io/en/latest/),
-[Pipenv](https://pipenv.readthedocs.io/en/latest/), and
-[virtualenv](https://virtualenv.pypa.io/en/latest/).
+## Directory Structure Overview
 
-## Testing
+- `scripts/`
+  - `experiments/`
+    - `ml1/`
+      - `pick_place/`
+      - `push/`
+      - `reach/`
+    - `ml10/`
 
-The most important feature of garage is its comprehensive automated unit test
-and benchmarking suite, which helps ensure that the algorithms and modules in
-garage maintain state-of-the-art performance as the software changes.
+Each task directory within `ml1` and `ml10` contains subdirectories for `maml` and `rl2`, where the experimental scripts are located.
 
-Our testing strategy has three pillars:
+## ML1 Experiments
 
-* **Automation:**
-  We use continuous integration to test all modules and algorithms in garage
-  before adding any change. The full installation and test suite is also run
-  nightly, to detect regressions.
-* **Acceptance Testing:**
-  Any commit which might change the performance of an algorithm is subjected to
-  comprehensive benchmarks on the relevant algorithms before it is merged
-* **Benchmarks and Monitoring:**
-  We benchmark the full suite of algorithms against their relevant benchmarks
-  and widely-used implementations regularly, to detect regressions and
-  improvements we may have missed.
+Navigate to the appropriate task and algorithm within the `scripts/experiments/ml1/` directory to run the corresponding scripts.
 
-## Supported Releases
+### MAML Algorithm
 
-| Release | Build Status | Last date of support |
-| ------- | ------------ | -------------------- |
-| [v2021.03](https://github.com/rlworkgroup/garage/releases/tag/v2021.03.0) | [![Garage CI Release-2021.03](https://github.com/rlworkgroup/garage/workflows/Garage%20CI%20Release-2021.03/badge.svg)](https://github.com/rlworkgroup/garage/actions?query=workflow%3A%22Garage+CI+Release-2021.03%22) | May 31st, 2021 |
+For tasks like `pick_place`, `push`, or `reach` under MAML:
 
-Maintenance releases have a stable API and dependency tree,
-and receive bug fixes and critical improvements but not new features. We
-currently support each release for a window of 2 months.
-
-## Citing garage
-
-If you use garage for academic research, please cite the repository using the
-following BibTeX entry. You should update the `commit` field with the commit or
-release tag your publication uses.
-
-```latex
-@misc{garage,
- author = {The garage contributors},
- title = {Garage: A toolkit for reproducible reinforcement learning research},
- year = {2019},
- publisher = {GitHub},
- journal = {GitHub repository},
- howpublished = {\url{https://github.com/rlworkgroup/garage}},
- commit = {be070842071f736eb24f28e4b902a9f144f5c97b}
-}
+```bash
+cd scripts/experiments/ml1/<task>/maml
+./control.sh       # For control scenario
+./relative.sh      # For relative scenario
+./random.sh        # For random scenario
 ```
 
-## Credits
+### RL² Algorithm
 
-The earliest code for garage was adopted from predecessor project called
-[rllab](https://github.com/rll/rllab). The garage project is grateful for the
-contributions of the original rllab authors, and hopes to continue advancing the
-state of reproducibility in RL research in the same spirit. garage has
-previously been supported by the Amazon Research Award "Watch, Practice, Learn,
-Do: Unsupervised Learning of Robust and Composable Robot Motion Skills by Fusing
-Expert Demonstrations with Robot Experience."
+For the same tasks under RL²:
 
----
-<p align="center" style="align-items:center; display:inline-block">Made with &#10084; &nbsp;at <a href="https://robotics.usc.edu/resl/" target="_blank"><img align="absmiddle" src="https://github.com/rlworkgroup/garage/blob/master/docs/_static/resl_logo.png?raw=true" height="60px"></a> and &nbsp;<a href="https://viterbischool.usc.edu/" target="_blank"><img align="absmiddle" src="https://github.com/rlworkgroup/garage/blob/master/docs/_static/viterbi_logo.png?raw=true" height="30px"></a></p>
+```bash
+cd scripts/experiments/ml1/<task>/rl2
+./control.sh       # For control scenario
+./relative.sh      # For relative scenario
+./random.sh        # For random scenario
+```
+
+## ML10 Experiments
+
+Navigate to the `ml10` directory for MAML and RL² experiments, where scripts are tailored for different control scenarios.
+
+### MAML and RL² Algorithms
+
+```bash
+cd scripts/experiments/ml10/<algorithm>
+./control_relative.sh   # For control relative scenario
+./control_random.sh     # For control random scenario
+./relative.sh           # For relative scenario
+./random.sh             # For random scenario
+```
+
+Replace `<task>` with `pick_place`, `push`, or `reach` and `<algorithm>` with `maml` or `rl2` as per your experiment setup.
+
+## Running Scripts
+
+Ensure you have the necessary permissions to execute the scripts:
+
+```bash
+chmod +x *.sh   # Grant execution permissions if needed
+```
+
+## Note
+
+Before running any script, ensure all dependencies and environment settings are correctly configured as per the project's requirements.
+
+## Contributing
+
+Contributions are welcome. Please open an issue or submit a pull request for any improvements.
+
+## References
+
+- [Garage Repository](https://github.com/rlworkgroup/garage)
+- [Original MetaWorld](https://github.com/Farama-Foundation/Metaworld)
+- [Adjusted MetaWorld Constrained](https://github.com/cromicron/metaworld_constrained)
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- **rlworkgroup** for the original [garage](https://github.com/rlworkgroup/garage) repository.
+- **Farama Foundation** for the original [MetaWorld](https://github.com/Farama-Foundation/Metaworld).
+- Supervisors and peers who supported the master's thesis project.
