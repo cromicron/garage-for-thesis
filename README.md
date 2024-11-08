@@ -10,7 +10,7 @@ Developed as part of a master's thesis, this project focuses on implementing and
 ## Features
 
 - **Constrained Meta-RL Algorithms**: Implementation of MAML and RL² algorithms adapted for constrained environments.
-- **Customized MetaWorld Environments**: Utilizes an adjusted version of MetaWorld with specific constraints applied to tasks and environments. Find it [here](https://github.com/cromicron/metaworld_constrained).
+- **Customized MetaWorld Environments**: Utilizes an adjusted version of MetaWorld with specific constraints applied to tasks and environments.
 - **Based on Garage PR #2287**: Built upon the branch from [this pull request](https://github.com/rlworkgroup/garage/pull/2287), ensuring compatibility and stability with recent updates.
 
 ## Installation
@@ -27,7 +27,7 @@ Developed as part of a master's thesis, this project focuses on implementing and
 1. **Clone the Repository**
 
    ```bash
-   git clone https://github.com/yourusername/garage-for-thesis.git
+   git clone https://github.com/cromicron/garage-for-thesis.git
    ```
 
 2. **Set Up a Virtual Environment in the Project Root**
@@ -53,20 +53,14 @@ Developed as part of a master's thesis, this project focuses on implementing and
    pip install -r requirements.txt
    ```
 
-4. **Install the Adjusted MetaWorld**
+   This command will automatically install both `metaworld_constrained` and `akro` from their GitHub repositories, along with other dependencies.
 
-   ```bash
-   git clone https://github.com/cromicron/metaworld_constrained.git
-   cd metaworld_constrained
-   pip install -e .
-   ```
-
-5. **Install Garage**
+4. **Install Garage**
 
    Make sure to install garage from the specific branch:
 
    ```bash
-   git clone -b your-branch-name https://github.com/yourusername/garage.git
+   git clone -b your-branch-name https://github.com/cromicron/garage.git
    cd garage
    pip install -e .
    ```
