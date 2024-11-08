@@ -17,27 +17,37 @@ Developed as part of a master's thesis, this project focuses on implementing and
 
 ### Prerequisites
 
-- Python 3.7 or higher
+- Python 3.8.19 (tested and recommended)
 - Git
 - Virtual environment tool (optional but recommended)
+- **Linux OS** (recommended; Windows users may need to use Windows Subsystem for Linux (WSL) for compatibility)
 
 ### Steps
 
 1. **Clone the Repository**
 
    ```bash
-   git clone https://github.com/yourusername/your-repo-name.git
+   git clone https://github.com/yourusername/garage-for-thesis.git
    ```
 
-2. **Set Up a Virtual Environment (Optional)**
+2. **Set Up a Virtual Environment in the Project Root**
+
+   Navigate to the project root (the folder created by the clone):
 
    ```bash
-   cd your-repo-name
-   python -m venv venv
-   source venv/bin/activate  # On Windows use `venv\Scripts\activate`
+   cd garage-for-thesis
+   ```
+
+   Create and activate a virtual environment in the root directory:
+
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate  # On Windows using WSL, use the same command
    ```
 
 3. **Install Dependencies**
+
+   With the virtual environment activated, install the required packages:
 
    ```bash
    pip install -r requirements.txt
@@ -127,9 +137,13 @@ Ensure you have the necessary permissions to execute the scripts:
 chmod +x *.sh   # Grant execution permissions if needed
 ```
 
-## Note
+### Note on `control.sh` Script
 
-Before running any script, ensure all dependencies and environment settings are correctly configured as per the project's requirements.
+Each `control.sh` script is designed to:
+- Activate the virtual environment located in the root directory (`venv`).
+- Run the specified experiment in the `maml_ml1.py` file located in `constrained_meta_rl_scripts`.
+
+Before running `control.sh`, ensure the virtual environment (`venv`) is created in the project root and dependencies are installed.
 
 ## Contributing
 
