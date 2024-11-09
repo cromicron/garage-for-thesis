@@ -47,7 +47,7 @@ Markdown==3.6
 MarkupSafe==2.1.5
 matplotlib==3.7.5
 metaworld @ git+https://github.com/Farama-Foundation/Metaworld.git@d2338dcaea40e7dc521f172d3afd05eb71f60498
-git+https://github.com/cromicron/metaworld_constrained.git@4298b1887bc461b68c932e625772eca4e484ec24#egg=metaworld_constrained
+git+https://github.com/cromicron/metaworld_constrained.git@f87402286fcb4f3fde4e376463237b7c9627a0f2#egg=metaworld_constrained
 msgpack==1.0.8
 mujoco==2.3.7
 networkx==3.1
