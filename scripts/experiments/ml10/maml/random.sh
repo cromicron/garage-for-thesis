@@ -4,7 +4,7 @@
 cd "$(dirname "$0")" || exit
 
 # Navigate to the project root from the current script location (four levels up)
-PROJECT_ROOT=$(cd ../../../../.. && pwd)
+PROJECT_ROOT=$(cd ../../../.. && pwd)
 
 # Print the calculated PROJECT_ROOT for verification
 echo "Project root directory: $PROJECT_ROOT"
