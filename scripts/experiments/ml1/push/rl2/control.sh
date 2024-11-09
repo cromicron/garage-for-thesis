@@ -24,6 +24,7 @@ cd "$PROJECT_ROOT/constrained_meta_rl_scripts" || exit
 
 # Run the project script
 echo "Running project script..."
-python3 maml_ml1.py --epochs 4000 --no_train_constraint --env-name push-v2
+python3 rl2_ml1.py --no_train_constraint --env-name push-v2
 
 echo "Finished Running"
+

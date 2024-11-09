@@ -1,16 +1,30 @@
 #!/bin/bash
-#SBATCH --job-name=rl2_d
-#SBATCH --output=logs/const_rl2_ml1_pickplace_relative.txt
-#SBATCH --ntasks=1
-#SBATCH --time=10-00:00:00
-#SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=16
-#SBATCH --partition=minor
+
+# Move to the directory where the script is located
+cd "$(dirname "$0")" || exit
+
+# Navigate to the project root from the current script location (four levels up)
+PROJECT_ROOT=$(cd ../../../../.. && pwd)
+
+# Print the calculated PROJECT_ROOT for verification
+echo "Project root directory: $PROJECT_ROOT"
+
+# Check if the virtual environment exists in the project root; if not, prompt the user
+if [ ! -d "$PROJECT_ROOT/venv" ]; then
+    echo "Virtual environment not found in the project root. Please create it in the 'venv' folder."
+    exit 1
+fi
 
 # Activate the virtual environment
-echo "Initializing environment..."
-source /home/stud/nalis/thesis/virtualenvs/garage/bin/activate
-cd /home/stud/nalis/thesis/garage-for-thesis/constrained_meta_rl_scripts || exit
+echo "Activating virtual environment..."
+source "$PROJECT_ROOT/venv/bin/activate"
+
+# Navigate to the directory containing maml_ml1.py
+cd "$PROJECT_ROOT/constrained_meta_rl_scripts" || exit
+
+# Run the project script
 echo "Running project script..."
-python3 constrained_rl2_ppo_metaworld_ml1_template.py
+python3 rl2_ml1.py
+
 echo "Finished Running"
+

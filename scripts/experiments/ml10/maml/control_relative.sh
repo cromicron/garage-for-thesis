@@ -1,16 +1,28 @@
 #!/bin/bash
-#SBATCH --job-name=maml_n_rel
-#SBATCH --output=logs/const_maml_ml10_relative_scaled_none.txt
-#SBATCH --ntasks=1
-#SBATCH --time=10-00:00:00
-#SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=16
-#SBATCH --partition=minor
+
+# Move to the directory where the script is located
+cd "$(dirname "$0")" || exit
+
+# Navigate to the project root from the current script location (four levels up)
+PROJECT_ROOT=$(cd ../../../../.. && pwd)
+
+# Print the calculated PROJECT_ROOT for verification
+echo "Project root directory: $PROJECT_ROOT"
+
+# Check if the virtual environment exists in the project root; if not, prompt the user
+if [ ! -d "$PROJECT_ROOT/venv" ]; then
+    echo "Virtual environment not found in the project root. Please create it in the 'venv' folder."
+    exit 1
+fi
 
 # Activate the virtual environment
-echo "Initializing environment..."
-source /home/stud/nalis/thesis/virtualenvs/garage/bin/activate
-cd /home/stud/nalis/thesis/garage-for-thesis/constrained_meta_rl_scripts || exit
+echo "Activating virtual environment..."
+source "$PROJECT_ROOT/venv/bin/activate"
+
+# Navigate to the directory containing maml_ml1.py
+cd "$PROJECT_ROOT/constrained_meta_rl_scripts" || exit
+
+# Run the project script
 echo "Running project script..."
-python3 constrained_maml_trpo_metaworld_ml10_normalized.py --constraint_mode relative --scale_adv --entropy_method regularized --no_train_constraint --no_const_in_obs --epochs 8000
+python3 maml_ml10.py --constraint_mode relative --scale_adv --entropy_method regularized --no_train_constraint --no_const_in_obs --epochs 8000
 echo "Finished Running"
