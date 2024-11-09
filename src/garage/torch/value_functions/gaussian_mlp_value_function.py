@@ -7,40 +7,43 @@ from garage.torch.value_functions.value_function import ValueFunction
 
 
 class GaussianMLPValueFunction(ValueFunction):
-    """Gaussian MLP Value Function with Model.
+    """Gaussian MLP Value Function with a model-based approach.
 
-    It fits the input data to a gaussian distribution estimated by
-    a MLP.
+    This value function model fits input data to a Gaussian distribution
+    estimated by a multi-layer perceptron (MLP).
 
     Args:
-        env_spec (EnvSpec): Environment specification.
-        hidden_sizes (list[int]): Output dimension of dense layer(s) for
-            the MLP for mean. For example, (32, 32) means the MLP consists
-            of two hidden layers, each with 32 hidden units.
-        hidden_nonlinearity (callable): Activation function for intermediate
-            dense layer(s). It should return a torch.Tensor. Set it to
-            None to maintain a linear activation.
-        hidden_w_init (callable): Initializer function for the weight
-            of intermediate dense layer(s). The function should return a
-            torch.Tensor.
-        hidden_b_init (callable): Initializer function for the bias
-            of intermediate dense layer(s). The function should return a
-            torch.Tensor.
-        output_nonlinearity (callable): Activation function for output dense
-            layer. It should return a torch.Tensor. Set it to None to
-            maintain a linear activation.
-        output_w_init (callable): Initializer function for the weight
-            of output dense layer(s). The function should return a
-            torch.Tensor.
-        output_b_init (callable): Initializer function for the bias
-            of output dense layer(s). The function should return a
-            torch.Tensor.
-        learn_std (bool): Is std trainable.
-        init_std (float): Initial value for std.
-            (plain value - not log or exponentiated).
-        layer_normalization (bool): Bool for using layer normalization or not.
-        name (str): The name of the value function.
+        env_spec (EnvSpec): Environment specification detailing observation and action spaces.
+        hidden_sizes (list[int]): Output dimensions of dense layers in the MLP for the mean.
+            For example, (32, 32) means the MLP has two hidden layers, each with 32 units.
+        hidden_nonlinearity (callable): Activation function for intermediate dense layers.
+            Should return a torch.Tensor. Set to None for linear activation.
+        hidden_w_init (callable): Initializer for the weights of intermediate dense layers.
+            Should return a torch.Tensor.
+        hidden_b_init (callable): Initializer for the biases of intermediate dense layers.
+            Should return a torch.Tensor.
+        output_nonlinearity (callable): Activation function for the output layer.
+            Should return a torch.Tensor. Set to None for linear activation.
+        output_w_init (callable): Initializer for the weights of the output layer.
+            Should return a torch.Tensor.
+        output_b_init (callable): Initializer for the biases of the output layer.
+            Should return a torch.Tensor.
+        learn_std (bool): Whether the standard deviation is trainable.
+        init_std (float): Initial value for standard deviation (not log-transformed or exponentiated).
+        layer_normalization (bool): Whether to apply layer normalization.
+        name (str): Name of the value function.
+        normalize_inputs (bool): Whether to normalize input observations.
+        normalize_outputs (bool): Whether to normalize output values.
+        load_weights (bool): Whether to load pre-trained weights from disk.
+        weights_dir (str, optional): Directory path for loading and saving model weights.
+            Defaults to "saved_models/rl_2_value_funct.pth".
 
+    Attributes:
+        module (GaussianMLPModule): The core MLP module for estimating the Gaussian distribution.
+        x_mean (float): Mean for input normalization, if applied.
+        x_std (float): Standard deviation for input normalization, if applied.
+        y_mean (float): Mean for output normalization, if applied.
+        y_std (float): Standard deviation for output normalization, if applied.
     """
 
     def __init__(self,

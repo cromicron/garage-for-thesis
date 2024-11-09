@@ -60,7 +60,7 @@ def main(
         "include_const_in_obs": ml10.include_const_in_obs,
     }
 
-    # no need to normalize the reward, because it's the same env
+    # currently only 1 and 0 work. Multiple constraints are future work
     n_constraints = 1 if ml10.include_const_in_obs else 0
     tasks = MetaWorldTaskSampler(
         ml10, "train",
@@ -72,6 +72,8 @@ def main(
         lambda env, _: RL2Env(normalize(env, normalize_reward=True),
                               n_constraints=n_constraints), constructor_args=constructor_args)
     if valid:
+        # optional validation task, to test the model with the highest test-
+        # performance
         valid_tasks = MetaWorldTaskSampler(
             ml10, "valid",
             lambda env, _: RL2Env(normalize(env, normalize_reward=True),
@@ -93,8 +95,9 @@ def main(
         max_std=1.5,
         output_nonlinearity=torch.tanh,
         load_weights=False,
-
     )
+    # The baseline to estimate value function and allow for advantage
+    # computation in optimization
     baseline = GaussianMLPValueFunction(
         env_spec=env.spec,
         hidden_sizes=(128, 128),
@@ -105,7 +108,11 @@ def main(
     if train_constraint:
 
         if individual_lambdas:
-            # Create a ParameterDict to store Lagrangian multipliers with env_name as keys
+            # if every task should get its own lagrangian multiplier. Not
+            # recommended, as it likely increases overfitting
+
+            # Create a ParameterDict to store Lagrangian multipliers with
+            # env_name as keys
             lagrangian_dict = torch.nn.ParameterDict()
 
             # Initialize a dictionary for the value function constraints
@@ -168,6 +175,9 @@ def main(
     )
     if valid:
         valid_envs = valid_tasks.sample(12)
+        # Validation happens only when test-performance reaches maximum
+        # thus not necessitating parallel processing. Use LocalSampler
+        # to prevent memory issues.
         valid_task_sampler = LocalSampler(
             agents=policy,
             envs=valid_envs,
@@ -261,18 +271,27 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--epochs", type=int, default=10000)
+    # number of episodes in meta-trajectory
     parser.add_argument("--episodes_per_task", type=int, default=10)
+    # Overall number of meta-trajectories. 10 means 1 for each task
+    # Must be multiple of 10
     parser.add_argument("--meta_batch_size", type=int, default=10)
-
+    # If policy should ignore constraints
     parser.add_argument("--no_train_constraint", dest= "train_constraint", action="store_false")
 
-
+    # Learning rate for the lagrangian multiplier(s)
     parser.add_argument("--lr_lagrangian", type=float, default=5e-1)
+    # Starting value for lagrangian multiplier
     parser.add_argument("--lagrangian", type=float, default=1.0)
+    # chose relative or random. Relative means position of obstacles
+    # remains at same relative position compared to significant environment
+    # objects. Random puts it at a random place in an area
     parser.add_argument("--constraint_mode", type=str, default="relative")
     parser.add_argument("--constraint_size", type=float, default=0.03)
+    # whether to exclude obstacle position from observation
     parser.add_argument("--no_const_in_obs", dest="include_const_in_obs", action="store_false")
 
+    # How often to meta-test
     parser.add_argument("--n_epochs_per_eval", type=int, default=5)
     parser.add_argument("--gradient_clip", type=float)
     parser.add_argument(
@@ -282,6 +301,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--w_and_b", dest= "w_and_b", action="store_true")
     parser.add_argument("--no_w_and_b", dest="w_and_b", action="store_false")
+    # Whether to exclude validation tasks
     parser.add_argument("--no_valid", dest="valid", action="store_false")
     parser.set_defaults(
         train_constraint=True,
@@ -296,9 +316,8 @@ if __name__ == "__main__":
     include_const_in_obs = kwargs.include_const_in_obs
     individual_lambdas = kwargs.individual_lambdas
     valid = kwargs.valid
+    # Important for local snapshotting. Necessary for resuming experiment
+    # after abort
     experiment_name = f"constrained_rl2_ml10_{constraint_mode}_train_constraint={train_constraint}_include_const_in_obs={include_const_in_obs}_individual_lambdas={individual_lambdas}_valid={valid}"
     experiment_overrides = {"name": experiment_name}
     main(experiment_overrides, **vars(kwargs))
-
-
-

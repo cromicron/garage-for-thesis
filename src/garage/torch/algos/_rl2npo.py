@@ -9,59 +9,43 @@ import wandb
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 class RL2NPO(NPO):
-    """Natural Policy Gradient Optimization.
+    """Natural Policy Gradient Optimization for RL^2.
 
-    This is specific for RL^2
-    (https://arxiv.org/pdf/1611.02779.pdf).
+    This class performs natural policy gradient optimization, tailored for the RL^2
+    algorithm, as described in https://arxiv.org/pdf/1611.02779.pdf.
 
     Args:
-        env_spec (EnvSpec): Environment specification.
-        policy (garage.tf.policies.StochasticPolicy): Policy.
-        baseline (garage.tf.baselines.Baseline): The baseline.
-        baseline_const: If constraints, the basline for const
-        sampler (garage.sampler.Sampler): Sampler.
-        scope (str): Scope for identifying the algorithm.
-            Must be specified if running multiple algorithms
-            simultaneously, each using different environments
-            and policies.
-        discount (float): Discount.
-        gae_lambda (float): Lambda used for generalized advantage
-            estimation.
-        center_adv (bool): Whether to rescale the advantages
-            so that they have mean 0 and standard deviation 1.
-        positive_adv (bool): Whether to shift the advantages
-            so that they are always positive. When used in
-            conjunction with center_adv the advantages will be
-            standardized before shifting.
-        fixed_horizon (bool): Whether to fix horizon.
-        pg_loss (str): A string from: 'vanilla', 'surrogate',
-            'surrogate_clip'. The type of loss functions to use.
-        lr_clip_range (float): The limit on the likelihood ratio between
-            policies, as in PPO.
-        max_kl_step (float): The maximum KL divergence between old and new
-            policies, as in TRPO.
-        optimizer (object): The optimizer of the algorithm. Should be the
-            optimizers in garage.tf.optimizers.
-        optimizer_args (dict): The arguments of the optimizer.
-        policy_ent_coeff (float): The coefficient of the policy entropy.
-            Setting it to zero would mean no entropy regularization.
-        use_softplus_entropy (bool): Whether to estimate the softmax
-            distribution of the entropy to prevent the entropy from being
-            negative.
-        use_neg_logli_entropy (bool): Whether to estimate the entropy as the
-            negative log likelihood of the action.
-        stop_entropy_gradient (bool): Whether to stop the entropy gradient.
-        entropy_method (str): A string from: 'max', 'regularized',
-            'no_entropy'. The type of entropy method to use. 'max' adds the
-            dense entropy to the reward for each time step. 'regularized' adds
-            the mean entropy to the surrogate objective. See
-            https://arxiv.org/abs/1805.00909 for more details.
-        fit_baseline (str): Either 'before' or 'after'. See above docstring for
-            a more detail explanation. Currently it only supports 'before'.
-        name (str): The name of the algorithm.
-
+        env_spec (EnvSpec): Environment specification detailing observation and action spaces.
+        policy (garage.torch.policies.StochasticPolicy): The stochastic policy network for the agent.
+        baseline (garage.torch.baselines.Baseline): Baseline network used to fit the value function.
+        baseline_const (garage.torch.baselines.Baseline or garage.np.baselines.Baseline or dict, optional):
+            Baseline for constraint-specific evaluation, if applicable. Can be a PyTorch or NumPy baseline,
+            or a dictionary for handling multiple environment-specific constraints.
+        sampler (garage.sampler.Sampler): Sampler instance for generating episodes.
+        scope (str): Identifier scope for the algorithm. Required if running multiple algorithms
+            simultaneously, each with distinct environments and policies.
+        discount (float): Discount factor applied to future rewards, typically between 0 and 1.
+        gae_lambda (float): Lambda parameter for generalized advantage estimation (GAE).
+        center_adv (bool): Whether to normalize advantages to have mean 0 and standard deviation 1.
+        positive_adv (bool): Whether to shift advantages to be positive. When used with center_adv,
+            the advantages will be standardized before shifting.
+        fixed_horizon (bool): Whether to fix horizon by disregarding terminal states within an episode.
+        pg_loss (str): Loss function type for policy gradient, one of: 'vanilla', 'surrogate',
+            or 'surrogate_clip'.
+        lr_clip_range (float): Maximum likelihood ratio between policies, constraining the update range (used in PPO).
+        max_kl_step (float): Maximum KL divergence between old and new policies, acting as a trust region constraint (used in TRPO).
+        optimizer (torch.optim.Optimizer): Optimizer instance used for training, typically from `torch.optim`.
+        optimizer_args (dict): Additional arguments for configuring the optimizer.
+        policy_ent_coeff (float): Coefficient for policy entropy. A zero value removes entropy regularization.
+        use_softplus_entropy (bool): Whether to apply softmax to the entropy estimate, preventing negative entropy values.
+        use_neg_logli_entropy (bool): Whether to calculate entropy as the negative log likelihood of actions.
+        stop_entropy_gradient (bool): Whether to stop gradients from propagating through entropy terms.
+        entropy_method (str): Entropy method, one of: 'max', 'regularized', or 'no_entropy'. 'max' adds dense entropy
+            to the reward for each step, while 'regularized' adds mean entropy to the surrogate objective.
+            For details, see https://arxiv.org/abs/1805.00909.
+        fit_baseline (str): Method for fitting the baseline, either 'before' or 'after'. Currently, only 'before' is supported.
+        name (str): Name of the algorithm, typically used for logging and identification.
     """
-
     def optimize_policy(self, episodes, save_weights=False):
         """Optimize policy.
 

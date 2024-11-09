@@ -35,6 +35,10 @@ class RL2Env(Wrapper):
     """
 
     def __init__(self, env, n_constraints=0):
+        if n_constraints not in (0, 1):
+            raise ValueError(
+                "Only 0 and 1 are currently supported for `n_constraints`."
+            )
         super().__init__(env)
         self._n_constraints = n_constraints
         self._observation_space = self._create_rl2_obs_space()
@@ -307,29 +311,37 @@ class RL2(MetaRLAlgorithm, abc.ABC):
 
     Reference: https://arxiv.org/pdf/1611.02779.pdf.
 
-    When sampling for RL^2, there are more than one environments to be
+    When sampling for RL^2, there are more than one environment to be
     sampled from. In the original implementation, within each task/environment,
     all episodes sampled will be concatenated into one single episode, and fed
     to the inner algorithm. Thus, returns and advantages are calculated across
     the episode.
 
-    RL2Worker is required in sampling for RL2.
+    RL2Worker is required in sampling for RL^2.
     See example/tf/rl2_ppo_halfcheetah.py for reference.
 
-    User should not instantiate RL2 directly.
-    Currently garage supports PPO and TRPO as inner algorithm. Refer to
+    Users should not instantiate RL2 directly.
+    Currently, garage supports PPO and TRPO as inner algorithms. Refer to
     garage/tf/algos/rl2ppo.py and garage/tf/algos/rl2trpo.py.
 
     Args:
-        env_spec (EnvSpec): Environment specification.
-        episodes_per_trial (int): Used to calculate the max episode length for
-            the inner algorithm.
-        meta_batch_size (int): Meta batch size.
-        task_sampler (TaskSampler): Task sampler.
-        meta_evaluator (MetaEvaluator): Evaluator for meta-RL algorithms.
-        n_epochs_per_eval (int): If meta_evaluator is passed, meta-evaluation
-            will be performed every `n_epochs_per_eval` epochs.
-        inner_algo_args (dict): Arguments for inner algorithm.
+        env_spec (EnvSpec): Environment specification, detailing observation and action spaces.
+        episodes_per_trial (int): Number of episodes for each trial in the inner algorithm.
+        meta_batch_size (int): Meta batch size, defining the number of tasks sampled per meta-iteration.
+        task_sampler (MetaWorldTaskSampler): Task sampler that provides tasks for each episode.
+        meta_evaluator (garage.experiment.MetaEvaluator): Evaluator for meta-RL algorithms, assessing performance on held-out tasks.
+        n_epochs_per_eval (int): If meta_evaluator is provided, evaluation frequency in terms of epochs.
+        inner_algo_args (dict): Arguments for configuring the inner algorithm, such as learning rate and batch size.
+        save_weights (bool): Whether to save model weights during training.
+        w_and_b (bool): Whether to use Weights & Biases logging.
+        render_every_i (int, optional): Frequency of rendering episodes for visualization.
+        run_in_episodes (int): Number of episodes to run in each evaluation trial.
+        constraint (bool): Whether to apply constraints on the optimization.
+        train_constraint (bool, optional): Whether to apply a constraint during training.
+        constraint_threshold (float, optional): Threshold for constraint application.
+        lr_constraint (float, optional): Learning rate for constraint satisfaction optimization.
+        valid_evaluator (garage.experiment.MetaEvaluator, optional): Evaluator for validation, if separate from the meta evaluator.
+        state_dir (str, optional): Directory to save model states and checkpoints.
 
     """
 
@@ -417,6 +429,12 @@ class RL2(MetaRLAlgorithm, abc.ABC):
         """
         last_return = None
         for r in range(self.run_in_episodes):
+            # The original metaworld paper uses normalized envs.
+            # Mean and std are stored in the environments. To get
+            # the scale of rewards in the environment, it can be helpful
+            # to step through the environment to get appropriate values
+            # Especially important when continuing training from snapshot
+            # As mean and std of rewards are not saved with the envs.
             logger.log("stepping through env, to get normalization values")
             if self._meta_evaluator.__class__.__name__ == "RL2MetaEvaluator":
                 trainer.obtain_episodes(
@@ -434,6 +452,8 @@ class RL2(MetaRLAlgorithm, abc.ABC):
 
         for _ in trainer.step_epochs():
             if self._render_every_i and trainer.step_itr % self._render_every_i == 0:
+                # If you want to render at some intervals. Don't use
+                # if training on cluster.
                 if self._meta_evaluator.__class__.__name__ == "RL2MetaEvaluator":
                     samples = self._meta_evaluator._task_sampler.sample(5)
                 else:
@@ -458,11 +478,13 @@ class RL2(MetaRLAlgorithm, abc.ABC):
                     self._meta_evaluator.evaluate(
                         self, itr_multiplier=self._n_epochs_per_eval
                     )
+                # get the recorded scores from tabular
                 rewards_raw_test = tabular.as_dict["MetaTest/post_adaptation/Average/AverageReturnRaw"]
                 success_rate_test = tabular.as_dict["MetaTest/post_adaptation/Average/SuccessRate"]
                 if self._train_constraint:
                     const_viol_test = tabular.as_dict["MetaTest/post_adaptation/Average/Constraint"]
                     if const_viol_test < self._constraint_threshold:
+                        # policy violated constraints below threshold
                         self._threshold_met_test = True  # Mark that threshold condition is met
                         if (
                             success_rate_test > self._best_success_rate_test) or (
@@ -470,6 +492,7 @@ class RL2(MetaRLAlgorithm, abc.ABC):
                             rewards_raw_test > self._best_reward_test
                         )
                         ):
+                            # new best model
                             logger.log(
                                 f"new best model. Success Rate: {success_rate_test}, constraint violation: {const_viol_test}")
                             self._best_success_rate_test = success_rate_test
@@ -562,7 +585,7 @@ class RL2(MetaRLAlgorithm, abc.ABC):
             self._optimizer_lagrangian.zero_grad()
 
             if hasattr(self.policy, "lagrangians"):
-
+                # individual lagrangians per env
                 task_names = episodes.env_infos[
                     "task_name"]  # numpy array indicating which env each row belongs to
                 unique_env_names = np.unique(task_names)

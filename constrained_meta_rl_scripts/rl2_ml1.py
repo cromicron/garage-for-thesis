@@ -5,8 +5,8 @@ import metaworld_constrained as metaworld
 import torch
 import os
 from garage import wrap_experiment
-from garage.envs import MetaWorldSetTaskEnv, normalize
-from garage.experiment import (MetaEvaluator, MetaWorldTaskSampler, SetTaskSampler)
+from garage.envs import normalize
+from garage.experiment import MetaWorldTaskSampler
 from garage.experiment.rl2_meta_evaluator import RL2MetaEvaluator
 from garage.experiment.deterministic import set_seed
 from garage.np.baselines import LinearFeatureBaseline
@@ -19,10 +19,12 @@ from garage.trainer import Trainer
 import wandb
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
+# Prevent Memory Problems
 os.environ["RAY_memory_usage_threshold"] = ".98"
+
 @wrap_experiment(
     snapshot_mode="last",
-    archive_launch_repo = False,
+    archive_launch_repo=False,
     use_existing_dir=True,
     name="rl2_ml1",
 )
@@ -42,10 +44,9 @@ def main(
     w_and_b,
     entropy_coefficient=5e-6,
     n_epochs_per_eval=5,
-    gradient_clip = None,
+    gradient_clip=None,
 ):
 
-    """Set up environment and algorithm and run the task."""
     set_seed(seed)
     ml1 = metaworld.ML1(
         env_name,
@@ -59,7 +60,7 @@ def main(
         "include_const_in_obs": ml1.include_const_in_obs,
     }
 
-    # no need to normalize the reward, because it's the same env
+    # currently only 1 and 0 work. Multiple constraints are future work
     n_constraints = 1 if ml1.include_const_in_obs else 0
     tasks = MetaWorldTaskSampler(
         ml1, 'train',
@@ -72,9 +73,9 @@ def main(
                               n_constraints=n_constraints), constructor_args=constructor_args)
 
     env_updates = tasks.sample(50)
-    env = env_updates[0]()
-
+    env = env_updates[0]()  # Initialize first sampled environment
     env_spec = env.spec
+
     policy = GaussianGRUPolicy(
         name='policy',
         hidden_dim=256,
@@ -93,7 +94,7 @@ def main(
         hidden_sizes=(128, 128),
         load_weights=False,
         weights_dir=f"saved_models/rl2_ml1_constrained_pick_place/baseline.pth"
-        )
+    )
     baseline.module.to(device=device, dtype=torch.float64)
 
     if train_constraint:
@@ -107,18 +108,18 @@ def main(
     else:
         value_function_const = None
 
-
     envs = tasks.sample(meta_batch_size)
 
     sampler = RaySampler(
         agents=policy,
         envs=envs,
-        seed=seed +1,
+        seed=seed + 1,
         max_episode_length=env_spec.max_episode_length,
         is_tf_worker=False,
         n_workers=meta_batch_size,
         worker_class=RL2Worker,
         worker_args=dict(n_episodes_per_trial=episodes_per_task))
+
     test_envs = test_tasks.sample(10)
     test_task_sampler = RaySampler(
         agents=policy,
@@ -209,22 +210,33 @@ if __name__ == "__main__":
     parser.add_argument('--env-name', type=str, default='pick-place-v2')
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--epochs', type=int, default=4000)
+    # number of episodes in meta-trajectory
     parser.add_argument('--episodes_per_task', type=int, default=10)
+    # Overall number of meta-trajectories. 10 means 1 for each task
+    # Must be multiple of 10
     parser.add_argument('--meta_batch_size', type=int, default=25)
+    # Learning rate for inner policy updates
     parser.add_argument('--inner_lr', type=float, default=1e-4)
 
-    parser.add_argument('--no_train_constraint', dest= 'train_constraint', action='store_false')
+    # If policy should ignore constraints
+    parser.add_argument('--no_train_constraint', dest='train_constraint', action='store_false')
     parser.set_defaults(train_constraint=True)
 
+    # Learning rate for the lagrangian multiplier
     parser.add_argument('--lr_lagrangian', type=float, default=5e-1)
+    # Starting value for lagrangian multiplier
     parser.add_argument('--lagrangian', type=float, default=1.0)
+    # Choose relative or random. Relative means position of obstacles
+    # remains at the same relative position compared to significant environment
+    # objects. Random places it randomly in an area.
     parser.add_argument('--constraint_mode', type=str, default='relative')
     parser.add_argument('--constraint_size', type=float, default=0.03)
 
+    # How often to meta-test
     parser.add_argument('--n_epochs_per_eval', type=int, default=10)
     parser.add_argument('--gradient_clip', type=float)
 
-    parser.add_argument('--w_and_b', dest= 'w_and_b', action='store_true')
+    parser.add_argument('--w_and_b', dest='w_and_b', action='store_true')
     parser.add_argument('--no_w_and_b', dest='w_and_b', action='store_false')
     parser.set_defaults(w_and_b=True)
     kwargs = parser.parse_args()
@@ -234,6 +246,3 @@ if __name__ == "__main__":
     experiment_name = f"constrained_rl2_{env_name}_{constraint_mode}_train_constraint={train_constraint}"
     experiment_overrides = {"name": experiment_name}
     main(experiment_overrides, **vars(kwargs))
-
-
-

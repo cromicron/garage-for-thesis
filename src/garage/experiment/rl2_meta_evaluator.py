@@ -15,28 +15,34 @@ from garage.sampler import DefaultWorker, LocalSampler, WorkerFactory
 class RL2MetaEvaluator:
     """Evaluates Meta-RL algorithms on test environments.
 
+    This class facilitates evaluation for Meta-RL algorithms by allowing sampling
+    from test tasks and logging performance metrics. It splits episodes into
+    exploration and adaptation phases to assess the algorithm's performance
+    post-adaptation.
+
     Args:
-        test_task_sampler (TaskSampler): Sampler for test
-            tasks. To demonstrate the effectiveness of a meta-learning method,
-            these should be different from the training tasks.
-        n_test_tasks (int or None): Number of test tasks to sample each time
-            evaluation is performed. Note that tasks are sampled "without
-            replacement". If None, is set to `test_task_sampler.n_tasks`.
-        n_exploration_eps (int): Number of episodes to gather from the
-            exploration policy before requesting the meta algorithm to produce
-            an adapted policy.
-        n_test_episodes (int): Number of episodes to use for each adapted
-            policy. The adapted policy should forget previous episodes when
-            `.reset()` is called.
-        prefix (str): Prefix to use when logging. Defaults to MetaTest. For
-            example, this results in logging the key 'MetaTest/SuccessRate'.
-            If not set to `MetaTest`, it should probably be set to `MetaTrain`.
-        test_task_names (list[str]): List of task names to test. Should be in
-            an order consistent with the `task_id` env_info, if that is
-            present.
-        worker_class (type): Type of worker the Sampler should use.
-        worker_args (dict or None): Additional arguments that should be
-            passed to the worker.
+        sampler (garage.sampler.Sampler): Sampler for generating episodes from tasks.
+        task_sampler (TaskSampler): Sampler for test tasks. To validate the effectiveness
+            of a meta-learning method, these tasks should differ from the training tasks.
+        n_exploration_eps (int): Number of episodes to gather from the exploration
+            policy before using the meta algorithm to produce an adapted policy.
+        n_test_tasks (int or None): Number of test tasks to sample for evaluation.
+            Tasks are sampled without replacement. Defaults to `sampler.n_tasks` if None.
+        n_test_episodes (int): Number of episodes to use for each adapted policy.
+            The adapted policy should reset (forget previous episodes) when `.reset()` is called.
+        prefix (str): Prefix used for logging. Defaults to 'MetaTest', resulting in keys like
+            'MetaTest/SuccessRate'. Set to 'MetaTrain' for training logs.
+        test_task_names (list[str]): List of task names for testing, ordered consistently
+            with the `task_id` in env_info if applicable.
+        worker_class (type): Class type of worker used by the Sampler.
+        worker_args (dict or None): Additional arguments to pass to the worker.
+        start_eval_itr (int): Starting iteration for evaluation, typically set when resuming
+            from a checkpoint.
+        w_and_b (bool): Whether to log results to Weights & Biases.
+        render_examples (bool): Whether to render example episodes during evaluation.
+
+    Raises:
+        ValueError: If task_sampler does not provide the required test tasks.
 
     """
 

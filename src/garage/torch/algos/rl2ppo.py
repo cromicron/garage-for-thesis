@@ -5,58 +5,50 @@ from garage.torch.optimizers import FirstOrderOptimizer
 
 
 class RL2PPO(RL2):
-    """Proximal Policy Optimization specific for RL^2.
+    class RL2PPO(RL2):
+        """Proximal Policy Optimization specific for RL^2.
 
-    See https://arxiv.org/abs/1707.06347 for algorithm reference.
+        See https://arxiv.org/abs/1707.06347 for algorithm reference.
 
-    Args:
-        meta_batch_size (int): Meta batch size.
-        task_sampler (TaskSampler): Task sampler.
-        env_spec (EnvSpec): Environment specification.
-        policy (garage.tf.policies.StochasticPolicy): Policy.
-        baseline (garage.tf.baselines.Baseline): The baseline.
-        sampler (garage.sampler.Sampler): Sampler.
-        episodes_per_trial (int): Used to calculate the max episode length for
-            the inner algorithm.
-        scope (str): Scope for identifying the algorithm.
-            Must be specified if running multiple algorithms
-            simultaneously, each using different environments
-            and policies.
-        discount (float): Discount.
-        gae_lambda (float): Lambda used for generalized advantage
-            estimation.
-        center_adv (bool): Whether to rescale the advantages
-            so that they have mean 0 and standard deviation 1.
-        positive_adv (bool): Whether to shift the advantages
-            so that they are always positive. When used in
-            conjunction with center_adv the advantages will be
-            standardized before shifting.
-        fixed_horizon (bool): Whether to fix horizon.
-        lr_clip_range (float): The limit on the likelihood ratio between
-            policies, as in PPO.
-        max_kl_step (float): The maximum KL divergence between old and new
-            policies, as in TRPO.
-        optimizer_args (dict): The arguments of the optimizer.
-        policy_ent_coeff (float): The coefficient of the policy entropy.
-            Setting it to zero would mean no entropy regularization.
-        use_softplus_entropy (bool): Whether to estimate the softmax
-            distribution of the entropy to prevent the entropy from being
-            negative.
-        use_neg_logli_entropy (bool): Whether to estimate the entropy as the
-            negative log likelihood of the action.
-        stop_entropy_gradient (bool): Whether to stop the entropy gradient.
-        entropy_method (str): A string from: 'max', 'regularized',
-            'no_entropy'. The type of entropy method to use. 'max' adds the
-            dense entropy to the reward for each time step. 'regularized' adds
-            the mean entropy to the surrogate objective. See
-            https://arxiv.org/abs/1805.00909 for more details.
-        meta_evaluator (garage.experiment.MetaEvaluator): Evaluator for meta-RL
-            algorithms.
-        n_epochs_per_eval (int): If meta_evaluator is passed, meta-evaluation
-            will be performed every `n_epochs_per_eval` epochs.
-        name (str): The name of the algorithm.
+        Args:
+            meta_batch_size (int): The number of tasks sampled per meta-iteration.
+            task_sampler (MetaWorldTaskSampler): Training Task sampler, providing tasks for each episode.
+            env_spec (EnvSpec): Environment specification, detailing observation and action spaces.
+            policy (garage.torch.policies.StochasticPolicy): Policy, typically a stochastic neural network policy.
+            baseline (garage.np.baselines.Baseline or garage.torch.value_functions.ValueFunction): The baseline model, used to fit the value function.
+            sampler (RaySampler or LocalSampler): Sampler, a mechanism to gather trajectories from the environment.
+            episodes_per_trial (int): Number of episodes for each trial in the inner algorithm.
+            baseline_const (garage.np.baselines.Baseline or None, optional): Baseline model for constraint-specific evaluation, if applicable.
+            scope (str, optional): Scope identifier for the algorithm, useful when running multiple algorithms.
+            discount (float): Discount factor for future rewards, typically between 0 and 1.
+            gae_lambda (float): Lambda used for generalized advantage estimation.
+            center_adv (bool): Whether to rescale advantages to have mean 0 and standard deviation 1.
+            positive_adv (bool): Whether to shift advantages to be always positive. Used with center_adv to standardize before shifting.
+            fixed_horizon (bool): Whether to fix horizon, disregarding terminal states within an episode.
+            lr_clip_range (float): The limit on the likelihood ratio between policies, as in PPO, to constrain updates.
+            max_kl_step (float): The maximum KL divergence between old and new policies, used for trust region enforcement.
+            optimizer_args_policy (dict): Arguments for configuring the policy optimizer.
+            optimizer_args_baseline (dict): Arguments for configuring the baseline optimizer.
+            policy_ent_coeff (float): Coefficient for policy entropy; setting it to zero removes entropy regularization.
+            use_softplus_entropy (bool): Whether to estimate the softmax distribution of the entropy to prevent negative entropy.
+            use_neg_logli_entropy (bool): Whether to estimate entropy as the negative log likelihood of the action.
+            stop_entropy_gradient (bool): Whether to stop gradient flow through entropy.
+            entropy_method (str): Type of entropy method to use: 'max', 'regularized', or 'no_entropy'.
+            meta_evaluator (RL2MetaEvaluator, optional): Evaluator for meta-RL algorithms, assessing performance on held-out tasks.
+            n_epochs_per_eval (int): If meta_evaluator is provided, evaluation frequency in terms of epochs.
+            name (str): Name of the algorithm, defaults to 'PPO'.
+            save_weights (bool): Whether to save model weights during training.
+            w_and_b (bool): Whether to use Weights & Biases logging.
+            render_every_i (int, optional): Frequency of rendering episodes for visualization.
+            run_in_episodes (int): Number of episodes to run in each evaluation trial.
+            constraint (bool): Whether to apply constraints on the optimization.
+            train_constraint (bool, optional): Whether to apply a constraint during training.
+            constraint_threshold (float, optional): Threshold for constraint application.
+            lr_constraint (float, optional): Learning rate for constraint satisfaction optimization.
+            valid_evaluator (RL2MetaEvaluator, optional): Evaluator for validation, if separate from the meta evaluator.
+            state_dir (str, optional): Directory to save model states and checkpoints.
 
-    """
+        """
 
     def __init__(self,
                  meta_batch_size,
