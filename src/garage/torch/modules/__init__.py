@@ -7,6 +7,7 @@ from garage.torch.modules.gaussian_mlp_module import (
 from garage.torch.modules.gaussian_mlp_module import (
     GaussianMLPTwoHeadedModule)  # noqa: E501
 from garage.torch.modules.gaussian_mlp_module import GaussianMLPModule
+from garage.torch.modules.gaussian_gru_module import GaussianGRUModule
 from garage.torch.modules.gru_encoder import GRUEncoder
 from garage.torch.modules.gamma_mlp_module import GammaMLPModule
 from garage.torch.modules.hypernetwork import HyperNetwork
@@ -22,6 +23,7 @@ __all__ = [
     'MLPModule',
     'MultiHeadedMLPModule',
     'GaussianMLPModule',
+    'GaussianGRUModule',
     'GammaMLPModule',
     'GaussianMLPIndependentStdModule',
     'GaussianMLPTwoHeadedModule',
