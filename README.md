@@ -1,7 +1,7 @@
 
 # Constrained Meta Reinforcement Learning with MetaWorld
 
-This repository is an adaptation of [garage](https://github.com/rlworkgroup/garage), tailored to test Model-Agnostic Meta-Learning (MAML) and RL² algorithms in constrained meta reinforcement learning settings using [MetaWorld](https://github.com/Farama-Foundation/Metaworld).
+This repository is an adaptation of [garage](https://github.com/rlworkgroup/garage), tailored to test MAML and RL² algorithms in constrained meta reinforcement learning settings using [MetaWorld](https://github.com/Farama-Foundation/Metaworld).
 
 ## Overview
 
@@ -19,7 +19,6 @@ Developed as part of a master's thesis, this project focuses on implementing and
 
 - Python 3.8.19 (tested and recommended)
 - Git
-- Virtual environment tool (optional but recommended)
 - **Linux OS** (recommended; Windows users may need to use Windows Subsystem for Linux (WSL) for compatibility)
 
 ### Steps
