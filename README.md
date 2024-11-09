@@ -54,16 +54,6 @@ Developed as part of a master's thesis, this project focuses on implementing and
 
    This command will automatically install both `metaworld_constrained` and `akro` from their GitHub repositories, along with other dependencies.
 
-4. **Install Garage**
-
-   Make sure to install garage from the specific branch:
-
-   ```bash
-   git clone -b your-branch-name https://github.com/cromicron/garage.git
-   cd garage
-   pip install -e .
-   ```
-
 ## Running Experiments
 
 The experiments are organized under `ml1` and `ml10` directories, each containing tasks and algorithms (MAML and RL²). Scripts for each experiment scenario are located within the `scripts` folder of the project.
