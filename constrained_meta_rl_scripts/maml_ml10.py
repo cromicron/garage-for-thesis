@@ -1,30 +1,27 @@
 #!/usr/bin/env python3
+
 import argparse
-import os
 import metaworld_constrained as metaworld
 import torch
-
 from garage import wrap_experiment
 from garage.experiment import MetaWorldTaskSampler
 from garage.experiment.maml_meta_evaluator import MetaEvaluator as MamlEvaluator
 from garage.experiment.deterministic import set_seed
 from garage.np.baselines import LinearFeatureBaseline
-from garage.sampler import RaySampler
+from garage.sampler import RaySampler, LocalSampler
 from garage.torch.algos import MAMLTRPO
 from garage.torch.policies import GaussianMLPPolicy
 from garage.trainer import Trainer
 import wandb
 
-os.environ["RAY_memory_usage_threshold"] = ".98"
 @wrap_experiment(
     snapshot_mode='last',
     archive_launch_repo = False,
     use_existing_dir=True,
-    name="constrained_maml_ml1",
+    name="constrained_maml_ml10",
 )
 def main(
     ctxt,
-    env_name,
     seed,
     epochs,
     rollouts_per_task,
@@ -39,33 +36,37 @@ def main(
     constraint_mode,
     constraint_size,
     include_const_in_obs,
-    w_and_b
+    w_and_b,
+    valid,
 ):
     """Set up environment and algorithm and run the task."""
     set_seed(seed)
-    ml1 = metaworld.ML1(
-        env_name,
+    ml10 = metaworld.ML10(
         seed,
         constraint_mode=constraint_mode,
         constraint_size=constraint_size,
+        include_const_in_obs=include_const_in_obs,
+        valid=valid
     )
     constructor_args = {
-        "constraint_mode": ml1.constraint_mode,
-        "constraint_size": ml1.constraint_size,
-        "include_const_in_obs": ml1.include_const_in_obs,
+        "constraint_mode": ml10.constraint_mode,
+        "constraint_size": ml10.constraint_size,
+        "include_const_in_obs": ml10.include_const_in_obs,
     }
     tasks = MetaWorldTaskSampler(
-        ml1,
+        ml10,
         "train",
         constructor_args=constructor_args
     )
     env = tasks.sample(10)[0]()
 
     test_tasks = MetaWorldTaskSampler(
-        ml1,
+        ml10,
         "test",
         constructor_args=constructor_args
     )
+
+
     num_test_envs = 5
     test_env = test_tasks.sample(num_test_envs)[0]()
 
@@ -111,6 +112,33 @@ def main(
                                        "post_adaptation/",
                                    ))
 
+    if valid:
+        valid_tasks = MetaWorldTaskSampler(
+            ml10,
+            "valid",
+            constructor_args=constructor_args
+        )
+        valid_env = valid_tasks.sample(6)[0]()
+        valid_sampler = LocalSampler(
+            agents=policy,
+            seed=seed + 3,
+            envs=valid_env,
+            max_episode_length=env.spec.max_episode_length,
+            n_workers=rollouts_per_task
+        )
+        validation_evaluator = MamlEvaluator(
+            sampler=valid_sampler,
+            task_sampler=valid_tasks,
+            n_exploration_eps=rollouts_per_task,
+            n_test_tasks=12,
+            n_test_episodes=rollouts_per_task,
+            w_and_b=w_and_b,
+            prefix="Validation",
+            pre_post_prefixes=("pre_adaptation/","post_adaptation/",)
+        )
+    else:
+        validation_evaluator = None
+
     sampler = RaySampler(agents=policy,
                          seed=seed+1,
                          envs=env,
@@ -142,11 +170,12 @@ def main(
         lr_constraint=lr_lagrangian,
         w_and_b=w_and_b,
         save_state=True,
-        state_dir=f"saved_models/maml_ml1__{env_name}_constrained_{constraint_mode}_const_in_obs={include_const_in_obs}_scale_adv={scale_adv}",
+        state_dir=f"saved_models/maml_ml10_constrained_{constraint_mode}_const_in_obs={include_const_in_obs}_scale_adv={scale_adv}",
         evaluate_every_n_epochs=5,
+        validation_evaluator=validation_evaluator,
     )
     if w_and_b:
-        wandb.init(project=f"constrained-maml-ml1-{env_name}", config={
+        wandb.init(project=f"constrained-maml-ml10", config={
             "inner_rl": inner_lr,
             "meta_batch_size": meta_batch_size,
             "discount": 0.99,
@@ -167,11 +196,10 @@ def main(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--env-name', type=str, default='pick-place-v2')
     parser.add_argument("--seed", type=int, default=1)
-    parser.add_argument("--epochs", type=int, default=2000)
+    parser.add_argument("--epochs", type=int, default=5000)
     parser.add_argument("--rollouts_per_task", type=int, default=10)
-    parser.add_argument("--meta_batch_size", type=int, default=25)
+    parser.add_argument("--meta_batch_size", type=int, default=20)
     parser.add_argument("--inner_lr", type=float, default=1e-4)
     parser.add_argument("--entropy_method", type=str, default="max")
     parser.add_argument("--normalize_adv", dest="normalize_adv", action="store_true")
@@ -188,20 +216,22 @@ if __name__ == "__main__":
 
     parser.add_argument("--w_and_b", dest= "w_and_b", action="store_true")
     parser.add_argument("--no_w_and_b", dest="w_and_b", action="store_false")
+    parser.add_argument("--no_valid", dest="valid", action="store_false")
     parser.set_defaults(
         entropy_method="max",
         normalize_adv=False,
         train_constraint=True,
         include_const_in_obs=True,
-        w_and_b=True
+        w_and_b=True,
+        valid=True,
     )
     kwargs = parser.parse_args()
-    env_name = kwargs.env_name
     constraint_mode = kwargs.constraint_mode
     train_constraint = kwargs.train_constraint
     scale_adv = kwargs.scale_adv
     include_const_in_obs = kwargs.include_const_in_obs
-    experiment_name = f"maml_{env_name}_{constraint_mode}_train_constraint={train_constraint}_include_const_in_obs={include_const_in_obs}_scale_adv={scale_adv}"
+    valid = kwargs.valid
+    experiment_name = f"constrained_maml_ml10_{constraint_mode}_train_constraint={train_constraint}_include_const_in_obs={include_const_in_obs}_scale_adv={scale_adv}_valid={valid}"
     experiment_overrides = {"name": experiment_name}
     main(experiment_overrides, **vars(kwargs))
 
