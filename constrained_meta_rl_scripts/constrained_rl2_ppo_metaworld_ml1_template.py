@@ -181,6 +181,7 @@ def main(
                   w_and_b=w_and_b,
                   render_every_i=None,
                   save_weights=True,
+                  state_dir=f"saved_models/rl2_ml1_constrained_{env_name}_condition_{constraint_mode}_train_constraint={train_constraint}"
                   )
 
     trainer.setup(algo, envs)
